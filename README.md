@@ -130,6 +130,8 @@ Codex、Cursor、GitHub Copilot、Gemini CLI 和 OpenCode 共用 `.agents/skills
 
 CLI 通过本地 Profile 配置 Backend 地址、PAT 和默认工作空间。对外接口公共前缀固定为 `/api/v1`。用户安装与初始配置应优先参考上面的快速开始，不需要克隆本仓库。
 
+2026-10-05 已在 `oauth` 开发分支建立 [CLI OAuth 实施计划](docs/oauth-implementation-plan.md)，涵盖浏览器授权、凭证保存、并发刷新和跨仓验收。当前登录仍使用 PAT，OAuth 默认登录尚未实现。
+
 ## 边界
 
 1. Backend 是权限、工作空间隔离、业务校验和异步任务状态的最终事实源；API 语义以主仓 [External Agent API v1 契约](https://github.com/LLMxPM/web-presentation/blob/dev/docs/developer/reference/external-agent-api.md) 为准。
