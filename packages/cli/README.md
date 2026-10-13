@@ -101,7 +101,7 @@ wp --raw project list
 
 Skill 与 CLI 一起发布，但使用独立版本。`wp skill status` 会识别缺失、过期、较新、不兼容、用户修改和未受管理等状态；普通升级不会覆盖用户修改，`--force` 会先保留同级备份。CLI 升级不会隐式改写已安装 Skill，需要重新运行 `wp skill install` 完成同步。
 
-当前版本关系：CLI `0.3.1` 内置 `web-presentation` Skill `1.3.2`，Skill 声明的 CLI 兼容范围为 `>=0.3.0,<0.4.0`。构建时会把这组关系与规范化内容 SHA-256 写入 manifest。
+当前版本关系：CLI `0.3.1` 内置 `web-presentation` Skill `1.3.3`，Skill 声明的 CLI 兼容范围为 `>=0.3.0,<0.4.0`。构建时会把这组关系与规范化内容 SHA-256 写入 manifest。Skill `1.3.3` 补充图片、公式、数据图表和流程图的 Runtime 组件选择，以及共享资源 name 与直接内容 content 两种使用方式。
 
 Windsurf 不属于本地目录安装目标。`wp skill export` 生成的标准 ZIP 可用于支持本地上传的产品；CLI 不从 URL 或第三方仓库下载 Skill。
 

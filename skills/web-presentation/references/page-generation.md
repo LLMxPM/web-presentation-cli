@@ -9,7 +9,7 @@
 - 受众与使用场景；
 - 本页唯一主要结论；
 - 标题、眉题、正文、数字、引用、来源和演讲者备注；
-- 内容最适合用文字、表格、图表、示意图还是图片表达；
+- 内容最适合用文字、表格、数据图表、数学公式、流程图、示意图还是图片表达；
 - 画布方向、信息密度、品牌/主题、可复用组件和必须使用的素材；
 - 缺失资料的明确占位，以及空态、加载态、错误态、超长文本和缺图状态。
 
@@ -63,6 +63,8 @@ wp --json page dependencies <page_id>
 
 ## 5. 编写页面 SFC
 
+构图中选定图片、公式、数据图表或流程图后，先按 [资源与设计系统](./design-system-and-assets.md) 选择对应 Runtime Kit 渲染组件，并用 `wp runtime-kit get <item>` 读取真实路径、用法和参数。已有共享资源按 `name` 引用；一次性公式或图表可按契约直接传 `content`，需要跨页复用或独立维护时再创建资源。
+
 页面必须是完整、可运行的 Vue 3 SFC。默认根结构：
 
 ```vue
@@ -81,7 +83,7 @@ import DefaultContainer from '@runtime-kit/public/components/page/layout/Default
 </template>
 ```
 
-实际 import path 必须以 `wp runtime-kit get` 返回为准；页面规范、主题类、资源组件和禁止项见 [页面源码规范](./source-standards.md)。
+实际 import path 必须以 `wp runtime-kit get` 返回为准；页面规范、主题类和禁止项见 [页面源码规范](./source-standards.md)，资源渲染与直接传入内容的示例见资源与设计系统。
 
 ## 6. 预检和写入
 

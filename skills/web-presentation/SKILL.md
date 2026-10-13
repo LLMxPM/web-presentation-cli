@@ -25,12 +25,14 @@ Web Presentation 是面向 AI 的演示内容创作平台，不是单文件幻�
 - 首次登录、切换 Backend/Profile、尚未选择工作空间，或不熟悉 JSON 文件参数、异步任务和确认语义时，读 [CLI 工作流](./references/cli-usage.md)。
 - 生成或大幅修改页面时，读 [页面生成流程](./references/page-generation.md) 和 [页面源码规范](./references/source-standards.md)。
 - 创建或修改工作空间组件时，读 [组件规范](./references/component-standards.md)；涉及源码时同时读页面源码规范。
-- 选择或维护图片、图标、字体、主题、样式等输入时，读 [资源与设计系统](./references/design-system-and-assets.md)。
+- 页面或组件需要图片、数学公式、数据图表、流程图，或选择/维护图标、字体、主题、样式等输入时，读 [资源与设计系统](./references/design-system-and-assets.md)；即使没有现成资源，也要按内容选择 Runtime Kit 渲染能力。
 - 处理候选校验、Mutation Job、截图、失败恢复或交付时，读 [校验与交付](./references/validation-and-delivery.md)。
 - 创建整套演示、编排页面顺序或调整目录时，读 [路由与导航](./references/route-and-navigation.md)，并执行页面生成流程中的多页交付步骤。
 - 需要进一步确认对象归属、配置快照、路由或依赖关系时，读 [平台资源模型](./references/platform-model.md)。
 
 具体命令先运行 `wp <group> <command> --help`。叶子命令帮助会从当前 Backend OpenAPI 展示参数和完整请求 Schema；页面或组件源码任务还要执行 `wp standards page` 或 `wp standards component`，并从 `wp runtime-kit list/get` 获取真实版本化 import path。
+
+图片、公式、数据图表和流程图默认优先使用对应 Runtime Kit 渲染组件；读取所选能力的 `usage`、`constraints` 和参数契约，再决定引用共享资源 `name`，还是直接传入本页所需的文本 `content`。具体选择和示例见资源与设计系统。
 
 ## 执行闭环
 
