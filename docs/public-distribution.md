@@ -56,7 +56,7 @@ pipx install web-presentation-cli
 
 ```bash
 wp --help
-wp skill install --scope global --agent all
+wp skill install --scope global
 ```
 
 CLI 和 Skill 使用独立 SemVer。构建生成的内置 manifest 记录 CLI 版本、Skill 版本、CLI 兼容范围与内容 SHA-256；升级 CLI 后使用 `wp skill status` 检查已安装副本，并重新执行 `wp skill install` 同步。安装器不在包安装或普通 CLI 启动时隐式写入 Agent 目录。

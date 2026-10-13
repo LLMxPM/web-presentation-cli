@@ -8,7 +8,7 @@
 
 2026-10-04 起，MCP 代码、规划和服务交付独立到 [web-presentation-mcp](https://github.com/LLMxPM/web-presentation-mcp)。本仓只维护 CLI、专用同步客户端和配套 Skill；MCP 在自己的仓库维护异步客户端，两端仅共用 Backend External API 契约。远程多用户 MCP 尚未交付。拆分边界见 [仓库拆分记录](docs/repository-split.md)。
 
-主平台仓库是 [web-presentation](https://github.com/LLMxPM/web-presentation)，项目官网与案例演示见 [https://presentation.inputloom.com/](https://presentation.inputloom.com/)。主平台负责 Backend、Editor、Runtime 和 `/api/v1` External API v1。本仓库不直接访问主平台数据库、Redis、Runtime 或 Chromium。
+主平台仓库是 [web-presentation](https://github.com/LLMxPM/web-presentation)，项目官网与案例演示见 [https://wp.llmxpm.com/](https://wp.llmxpm.com/)。主平台负责 Backend、Editor、Runtime 和 `/api/v1` External API v1。本仓库不直接访问主平台数据库、Redis、Runtime 或 Chromium。
 
 主仓唯一维护的 External API v1 契约：[External Agent API v1 契约](https://github.com/LLMxPM/web-presentation/blob/dev/docs/developer/reference/external-agent-api.md)。本仓库当前只维护 CLI、专用同步客户端和 Skill 的接入实现。
 
@@ -54,13 +54,13 @@ wp doctor
 wp skill install
 ```
 
-交互界面中的 `2. 项目` 是推荐选项，会把 Skill 安装到项目根目录的 Agent Skill 目录；`1. 全局` 才会安装到当前用户目录。Codex、Cursor、GitHub Copilot、Gemini CLI 和 OpenCode 共用 `.agents/skills/web-presentation`，只安装一份；Claude Code 使用 `.claude/skills/web-presentation`，MiMo 使用 `.mimocode/skills/web-presentation`（全局为 `~/.config/mimocode/skills/web-presentation`），WorkBuddy 使用 `.workbuddy/skills/web-presentation`。
+交互界面中的 `2. 项目` 是推荐选项，会把 Skill 安装到项目根目录的 `.agents/skills/web-presentation`；`1. 全局` 会安装到当前用户目录的 `~/.agents/skills/web-presentation`。
 
-明确安装当前项目的全部兼容目录时，可以运行：
+明确安装到当前项目的 `.agents/skills` 目录时，可以运行：
 
 ```bash
-wp skill install --scope project --agent all
-wp skill status --scope project --agent all
+wp skill install --scope project
+wp skill status --scope project
 ```
 
 安装完成后重新加载智能体窗口或新建会话，使其重新发现 Skill。
@@ -74,7 +74,7 @@ wp skill status --scope project --agent all
 
 先确认当前环境有 Python 3.11+，检查 `wp` 是否已安装；未安装时优先运行 `uv tool install web-presentation-cli`，再用 `wp --version` 验证。已安装时不要擅自升级或降级。
 
-CLI 可用后，立即在当前项目运行 `wp skill install`，选择项目级安装和当前智能体；不要在安装 Skill 之前配置登录或工作空间。随后运行 `wp skill status` 验证。遇到覆盖、强制安装或降级时先停下确认。安装成功后告诉我重新加载智能体或新建会话，后续登录和工作空间配置由 `web-presentation` Skill 指引。
+CLI 可用后，立即在当前项目运行 `wp skill install --scope project`；不要在安装 Skill 之前配置登录或工作空间。随后运行 `wp skill status --scope project` 验证。遇到覆盖、强制安装或降级时先停下确认。安装成功后告诉我重新加载智能体或新建会话，后续登录和工作空间配置由 `web-presentation` Skill 指引。
 ```
 
 安装成功并重新加载后，可以对智能体说：`请使用 $web-presentation 完成首次登录和工作空间配置。`
@@ -114,19 +114,19 @@ wp --help
 安装 CLI 随包发布的 `web-presentation` Skill：
 
 ```powershell
-# 缺少范围或 Agent 时，交互式终端会引导选择
+# 缺少范围时，交互式终端会引导选择全局或项目
 wp skill install
 
-# 非交互式安装到项目内的全部受支持 Agent
-wp skill install --scope project --agent all
+# 非交互式安装到项目内的 .agents/skills 目录
+wp skill install --scope project
 
 # 查看状态、卸载或导出标准 ZIP
-wp skill status --scope project --agent all
-wp skill uninstall --scope project --agent all --yes
+wp skill status --scope project
+wp skill uninstall --scope project --yes
 wp skill export
 ```
 
-Codex、Cursor、GitHub Copilot、Gemini CLI 和 OpenCode 共用 `.agents/skills`；Claude Code 使用 `.claude/skills`，MiMo 使用 `.mimocode/skills`（全局 `~/.config/mimocode/skills`），WorkBuddy 使用 `.workbuddy/skills`。支持项目级和当前用户全局安装，不修改 Agent 配置，也不支持任意第三方 Skill 来源。
+Skill 统一安装到 `.agents/skills`（项目级为 `<project>/.agents/skills/web-presentation`，全局为 `~/.agents/skills/web-presentation`）。支持项目级和当前用户全局安装，不修改 Agent 配置，也不支持任意第三方 Skill 来源。
 
 CLI 通过本地 Profile 配置 Backend 地址、PAT 和默认工作空间。对外接口公共前缀固定为 `/api/v1`。用户安装与初始配置应优先参考上面的快速开始，不需要克隆本仓库。
 
@@ -164,4 +164,4 @@ pipx install web-presentation-cli
 
 ### 契约可用性与多页交付
 
-CLI 0.3.0 的契约叶子帮助失败时立即非零退出，不输出部分帮助；`wp doctor` 独立检查 OpenAPI，有错误时退出 1。`--json` 输出稳定的精简业务字段，`--raw` 保留完整 Backend 响应；内置 Skill 当前为 `1.3.2`，临时文件统一约定在 `.tmp/web-presentation/`，并补充短期预览地址交付流程。CLI 0.3.1 起组件列表额外给出 `import_path` 与 `import_statement`，Skill 同步写明 `@workspace-components/<code>/v/<version_no>` 的发布版引用契约。具体安装与行为变更见 [CLI 说明](packages/cli/README.md)。
+CLI 0.3.0 的契约叶子帮助失败时立即非零退出，不输出部分帮助；`wp doctor` 独立检查 OpenAPI，有错误时退出 1。`--json` 输出稳定的精简业务字段，`--raw` 保留完整 Backend 响应；内置 Skill 当前为 `1.3.3`，临时文件统一约定在 `.tmp/web-presentation/`，并补充短期预览地址交付流程。CLI 0.3.1 起组件列表额外给出 `import_path` 与 `import_statement`，Skill 同步写明 `@workspace-components/<code>/v/<version_no>` 的发布版引用契约。具体安装与行为变更见 [CLI 说明](packages/cli/README.md)。

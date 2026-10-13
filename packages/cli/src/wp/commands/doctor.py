@@ -34,8 +34,8 @@ def doctor_cmd(ctx: click.Context) -> None:
     try:
         bundled_skill = get_bundled_skill("web-presentation")
         skill_targets = [
-            *plan_targets(bundled_skill.name, scope="global", agents=("all",)),
-            *plan_targets(bundled_skill.name, scope="project", agents=("all",)),
+            *plan_targets(bundled_skill.name, scope="global"),
+            *plan_targets(bundled_skill.name, scope="project"),
         ]
         installed = [
             inspect_target(bundled_skill, target)

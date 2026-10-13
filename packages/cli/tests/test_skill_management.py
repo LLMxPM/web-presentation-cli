@@ -27,61 +27,46 @@ import wp.skills.installer as skill_installer
 
 
 def _target(tmp_path: Path) -> SkillTarget:
-    """创建位于临时项目中的通用 Agent Skill 目标。"""
+    """创建位于临时项目中的 .agents/skills 目标。"""
 
     return SkillTarget(
         path=tmp_path / ".agents" / "skills" / "web-presentation",
         base=tmp_path,
-        agents=("codex",),
         scope="project",
     )
 
 
-def test_all_agents_are_deduplicated_into_four_targets(tmp_path: Path) -> None:
-    """all 应把共享 Agent 合并到 .agents，并单列 Claude、MiMo 与 WorkBuddy。"""
+def test_plan_targets_resolves_project_and_global_agents_directory(tmp_path: Path) -> None:
+    """项目与全局范围都只应生成单一的 .agents/skills 安装目标。"""
 
-    targets = plan_targets(
+    project_targets = plan_targets(
         "web-presentation",
         scope="project",
-        agents=("all",),
         project_dir=tmp_path,
     )
-
-    assert [target.path.parent.parent.name for target in targets] == [
-        ".agents",
-        ".claude",
-        ".mimocode",
-        ".workbuddy",
-    ]
-    assert targets[0].agents == ("codex", "cursor", "copilot", "gemini", "opencode")
-    assert targets[2].agents == ("mimo",)
-    assert targets[3].agents == ("workbuddy",)
-
-
-def test_global_mimo_uses_config_mimocode_path(tmp_path: Path) -> None:
-    """MiMo 全局安装应写入 ~/.config/mimocode/skills，而非 ~/.mimocode/skills。"""
+    assert len(project_targets) == 1
+    assert project_targets[0].path == tmp_path / ".agents" / "skills" / "web-presentation"
+    assert project_targets[0].scope == "project"
 
     home = tmp_path / "home"
     home.mkdir()
-    targets = plan_targets(
+    global_targets = plan_targets(
         "web-presentation",
         scope="global",
-        agents=("mimo",),
         home_dir=home,
     )
+    assert len(global_targets) == 1
+    assert global_targets[0].path == home / ".agents" / "skills" / "web-presentation"
+    assert global_targets[0].scope == "global"
 
-    assert len(targets) == 1
-    assert targets[0].path == home / ".config" / "mimocode" / "skills" / "web-presentation"
 
+def test_plan_targets_rejects_invalid_scope(tmp_path: Path) -> None:
+    """未知的安装范围应立即抛出 ValueError。"""
 
-def test_all_cannot_be_combined_with_another_agent(tmp_path: Path) -> None:
-    """all 与单个 Agent 混用应立即报错，避免目标语义不清。"""
-
-    with pytest.raises(ValueError, match="不能与其它 Agent"):
+    with pytest.raises(ValueError, match="不支持的安装范围"):
         plan_targets(
             "web-presentation",
-            scope="project",
-            agents=("all", "claude"),
+            scope="invalid",
             project_dir=tmp_path,
         )
 
@@ -244,7 +229,7 @@ def test_export_is_reproducible_and_has_skill_at_archive_root(tmp_path: Path) ->
 
 
 def test_cli_requires_explicit_selection_when_noninteractive() -> None:
-    """非交互模式缺少 scope/agent 时应返回用法错误而不是等待输入。"""
+    """非交互模式缺少 scope 时应返回用法错误而不是等待输入。"""
 
     result = CliRunner().invoke(main, ["skill", "status"])
 
@@ -252,64 +237,63 @@ def test_cli_requires_explicit_selection_when_noninteractive() -> None:
     assert "缺少 --scope" in result.output
 
 
-def test_interactive_agent_selection_groups_shared_directory(
+def test_cli_rejects_removed_agent_option() -> None:
+    """命令不应再接受 --agent 参数。"""
+
+    result = CliRunner().invoke(main, ["skill", "status", "--scope", "project", "--agent", "codex"])
+
+    assert result.exit_code == 2
+    assert "No such option" in result.output
+    assert "--agent" in result.output
+
+
+def test_interactive_scope_selection_uses_agents_directory(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """交互界面应把共用 .agents/skills 的兼容 Agent 展示为一个目标。"""
+    """交互界面只需一步选择范围，直接指向 .agents/skills 目录。"""
 
     monkeypatch.setattr("click.testing._NamedTextIOWrapper.isatty", lambda _stream: True)
-    result = CliRunner().invoke(main, ["skill", "status"], input="2\n1\n")
+    result = CliRunner().invoke(main, ["skill", "status"], input="2\n")
 
     assert result.exit_code == 0, result.output
     assert "请选择检查范围" in result.output
-    assert "1) 全局：用户目录下的 Agent Skill 目录" in result.output
-    assert "2) 项目：项目根目录下的 Agent Skill 目录" in result.output
-    assert "项目根目录下的 .agents/skills 兼容组" in result.output
-    assert "Codex、Cursor、GitHub Copilot、Gemini CLI、OpenCode" in result.output
-    assert "请选择 Agent 检查目标" in result.output
-    assert "共用同一个目录，只需检查这一份 Skill" in result.output
-    assert "项目根目录下的 .claude/skills：Claude Code" in result.output
-    assert "项目根目录下的 .mimocode/skills：MiMo" in result.output
-    assert "项目根目录下的 .workbuddy/skills：WorkBuddy" in result.output
-    assert "全部：检查以上四个实际目录中的 Skill" in result.output
+    assert "1) 全局：用户目录下的 ~/.agents/skills" in result.output
+    assert "2) 项目：项目根目录下的 .agents/skills" in result.output
+    assert "请选择 Agent" not in result.output
 
 
 def test_interactive_global_selection_identifies_home_directory(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """全局交互选择应明确显示用户目录路径，与项目级提示区分。"""
+    """全局交互选择应只询问范围并检查用户目录下的 ~/.agents/skills。"""
 
     monkeypatch.setattr("click.testing._NamedTextIOWrapper.isatty", lambda _stream: True)
-    result = CliRunner().invoke(main, ["skill", "status"], input="1\n1\n")
+    result = CliRunner().invoke(main, ["skill", "status"], input="1\n")
 
     assert result.exit_code == 0, result.output
-    assert "用户目录下的 ~/.agents/skills 兼容组" in result.output
-    assert "用户目录下的 ~/.config/mimocode/skills：MiMo" in result.output
+    assert "1) 全局：用户目录下的 ~/.agents/skills" in result.output
+    assert "global" in result.output
 
 
 def test_interactive_uninstall_uses_uninstall_specific_wording(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """卸载交互不得复用安装文案，并应说明实际目录数量和保护规则。"""
+    """卸载交互只选择范围并确认目标目录与保护规则。"""
 
     monkeypatch.setattr("click.testing._NamedTextIOWrapper.isatty", lambda _stream: True)
     result = CliRunner().invoke(
         main,
         ["skill", "uninstall", "--project-dir", str(tmp_path)],
-        input="2\n1\ny\n",
+        input="2\ny\n",
     )
 
     assert result.exit_code == 0, result.output
     assert "请选择卸载范围" in result.output
-    assert "请选择 Agent 卸载目标" in result.output
-    assert "共用同一个目录，只会卸载这一份 Skill" in result.output
-    assert "全部：卸载以上四个实际目录中的 Skill" in result.output
-    assert "将从所选 1 个实际目录卸载 web-presentation Skill" in result.output
     assert "受管理且未修改的安装将被删除" in result.output
     assert "用户修改或未受管理的目录将拒绝卸载" in result.output
     assert "请选择安装范围" not in result.output
-    assert "请选择 Agent 安装目标" not in result.output
+    assert "请选择 Agent" not in result.output
 
 
 def test_cli_project_json_lifecycle(tmp_path: Path) -> None:
@@ -319,8 +303,6 @@ def test_cli_project_json_lifecycle(tmp_path: Path) -> None:
     common = [
         "--scope",
         "project",
-        "--agent",
-        "all",
         "--project-dir",
         str(tmp_path),
         "--json",
@@ -328,7 +310,9 @@ def test_cli_project_json_lifecycle(tmp_path: Path) -> None:
 
     installed = runner.invoke(main, ["skill", "install", *common])
     assert installed.exit_code == 0, installed.output
-    assert len(json.loads(installed.output)["targets"]) == 4
+    targets = json.loads(installed.output)["targets"]
+    assert len(targets) == 1
+    assert "agents" not in targets[0]
 
     status = runner.invoke(main, ["skill", "status", *common])
     assert status.exit_code == 0, status.output

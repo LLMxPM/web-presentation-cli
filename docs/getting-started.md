@@ -7,9 +7,7 @@
 - Python 3.11 或更高版本；
 - Web Presentation 平台账号；
 - 一个已授权目标工作空间的个人访问令牌 (PAT)；
-- 能执行本地终端命令并支持 Skill 的智能体。
-
-支持的智能体包括 Codex、Cursor、GitHub Copilot、Gemini CLI、OpenCode、Claude Code、MiMo 和 WorkBuddy。Windsurf 暂不支持。
+- 能执行本地终端命令并加载 `.agents/skills` 目录的智能体。
 
 ## 推荐：让智能体协助安装
 
@@ -20,7 +18,7 @@
 
 先确认当前环境有 Python 3.11+，检查 `wp` 是否已安装；未安装时优先运行 `uv tool install web-presentation-cli`，再用 `wp --version` 验证。已安装时不要擅自升级或降级。
 
-CLI 可用后，立即在当前项目运行 `wp skill install`，选择项目级安装和当前智能体；不要在安装 Skill 之前配置登录或工作空间。随后运行 `wp skill status` 验证。遇到覆盖、强制安装或降级时先停下确认。安装成功后告诉我重新加载智能体或新建会话，后续登录和工作空间配置由 `web-presentation` Skill 指引。
+CLI 可用后，立即在当前项目运行 `wp skill install --scope project`；不要在安装 Skill 之前配置登录或工作空间。随后运行 `wp skill status --scope project` 验证。遇到覆盖、强制安装或降级时先停下确认。安装成功后告诉我重新加载智能体或新建会话，后续登录和工作空间配置由 `web-presentation` Skill 指引。
 ```
 
 安装成功并重新加载后，可以对智能体说：
@@ -89,29 +87,20 @@ wp skill install
 范围选择如下：
 
 ```text
-1. 全局：用户目录下的 Agent Skill 目录
-2. 项目：项目根目录下的 Agent Skill 目录（推荐）
+1) 全局：用户目录下的 ~/.agents/skills
+2) 项目：项目根目录下的 .agents/skills（默认）
 ```
 
-项目级目录映射：
-
-| 兼容目标 | 项目级目录 | 全局目录 |
-| --- | --- | --- |
-| Codex、Cursor、GitHub Copilot、Gemini CLI、OpenCode | `.agents/skills/web-presentation` | `~/.agents/skills/web-presentation` |
-| Claude Code | `.claude/skills/web-presentation` | `~/.claude/skills/web-presentation` |
-| MiMo | `.mimocode/skills/web-presentation` | `~/.config/mimocode/skills/web-presentation` |
-| WorkBuddy | `.workbuddy/skills/web-presentation` | `~/.workbuddy/skills/web-presentation` |
-
-前五个 Agent 共用 `.agents/skills` 兼容目录，只会安装一份 Skill。也可使用明确的非交互命令：
+也可使用明确的非交互命令：
 
 ```bash
-# 只安装当前 Agent；把 codex 替换为 cursor、copilot、gemini、opencode、claude、mimo 或 workbuddy
-wp skill install --scope project --agent codex
-wp skill status --scope project --agent codex
+# 安装到当前项目的 .agents/skills/web-presentation
+wp skill install --scope project
+wp skill status --scope project
 
-# 同时覆盖四个实际兼容目录
-wp skill install --scope project --agent all
-wp skill status --scope project --agent all
+# 安装到当前用户目录的 ~/.agents/skills/web-presentation
+wp skill install --scope global
+wp skill status --scope global
 ```
 
 项目目录默认取当前 Git 根目录；不在 Git 仓库中时取当前目录，也可通过 `--project-dir PATH` 明确指定。
@@ -132,11 +121,11 @@ wp skill status --scope project --agent all
 
 ```bash
 uv tool upgrade web-presentation-cli
-wp skill install --scope project --agent all
-wp skill status --scope project --agent all
+wp skill install --scope project
+wp skill status --scope project
 ```
 
-安装器默认不会覆盖被用户修改或未受管理的目录。只有确认需要替换时才使用 `--force`；原目录会先移动为同级备份。
+安装器默认不会覆盖被用户修改或未受管理的目录。只有确认需要替换时才使用 `--force`；原目录会先移动为同级备份。若旧版本曾将 Skill 安装到 `.claude/skills`、`.mimocode/skills`、`~/.config/mimocode/skills` 或 `.workbuddy/skills`，请手动删除旧目录，避免智能体优先加载过期副本。
 
 常见检查：
 
@@ -144,7 +133,7 @@ wp skill status --scope project --agent all
 wp doctor
 wp profile list
 wp workspace list
-wp skill status --scope project --agent all
+wp skill status --scope project
 ```
 
 配置文件位于 `~/.web-presentation/config.json`，其中包含敏感 PAT。排障时不要把完整文件发送给他人，也不要提交到仓库。

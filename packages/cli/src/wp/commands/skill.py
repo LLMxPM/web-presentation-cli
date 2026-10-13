@@ -17,20 +17,11 @@ from wp.skills.installer import (
     install_skill,
     uninstall_skill,
 )
-from wp.skills.targets import SUPPORTED_AGENTS, plan_targets
-
-_AGENT_CHOICES = (*SUPPORTED_AGENTS, "all")
-_INTERACTIVE_AGENT_GROUPS = {
-    "1": ("codex", "cursor", "copilot", "gemini", "opencode"),
-    "2": ("claude",),
-    "3": ("mimo",),
-    "4": ("workbuddy",),
-    "5": ("all",),
-}
+from wp.skills.targets import plan_targets
 
 
 def _common_target_options(command: Callable[..., Any]) -> Callable[..., Any]:
-    """为安装、状态和卸载命令注册一致的范围与 Agent 参数。"""
+    """为安装、状态和卸载命令注册一致的范围与项目目录参数。"""
 
     options = [
         click.option("--json", "skill_json", is_flag=True, help="以 JSON 输出当前命令结果。"),
@@ -39,13 +30,6 @@ def _common_target_options(command: Callable[..., Any]) -> Callable[..., Any]:
             type=click.Path(path_type=Path, file_okay=False, exists=True, resolve_path=True),
             help="项目级安装根目录；默认使用当前 Git 仓库根目录。",
         ),
-        click.option(
-            "--agent",
-            "agents",
-            multiple=True,
-            type=click.Choice(_AGENT_CHOICES, case_sensitive=False),
-            help="目标 Agent，可重复；all 表示全部支持的 Agent。",
-        ),
         click.option("--scope", type=click.Choice(("global", "project")), help="安装范围。"),
     ]
     for option in reversed(options):
@@ -53,111 +37,59 @@ def _common_target_options(command: Callable[..., Any]) -> Callable[..., Any]:
     return command
 
 
-def _resolve_selection(
+def _resolve_scope(
     ctx: click.Context,
     scope: str | None,
-    agents: tuple[str, ...],
     *,
     skill_json: bool,
     operation: str,
-) -> tuple[str, tuple[str, ...]]:
-    """解析显式或交互选择；JSON/非 TTY 场景禁止等待输入。"""
+) -> str:
+    """解析显式或交互范围选择；JSON/非 TTY 场景禁止等待输入。"""
 
+    if scope is not None:
+        return scope
     as_json = skill_json or bool(ctx.obj.get("as_json"))
     interactive = sys.stdin.isatty() and not as_json
+    if not interactive:
+        raise click.UsageError("缺少 --scope；非交互或 JSON 模式必须显式指定 global 或 project。")
     operation_labels = {
-        "install": (
-            "安装",
-            "安装",
-            "只会安装一份 Skill",
-            "将 Skill 安装到以上四个实际目录",
-        ),
-        "status": (
-            "检查",
-            "检查",
-            "只需检查这一份 Skill",
-            "检查以上四个实际目录中的 Skill",
-        ),
-        "uninstall": (
-            "卸载",
-            "卸载",
-            "只会卸载这一份 Skill",
-            "卸载以上四个实际目录中的 Skill",
-        ),
+        "install": "安装",
+        "status": "检查",
+        "uninstall": "卸载",
     }
-    scope_action, target_action, shared_action, all_action = operation_labels[operation]
-    if scope is None:
-        if not interactive:
-            raise click.UsageError("缺少 --scope；非交互或 JSON 模式必须显式指定 global 或 project。")
-        click.echo(f"请选择{scope_action}范围：")
-        click.echo("  1) 全局：用户目录下的 Agent Skill 目录")
-        click.echo("  2) 项目：项目根目录下的 Agent Skill 目录")
-        scope_choice = click.prompt(
-            "请输入范围编号",
-            type=click.Choice(("1", "2")),
-            default="2",
-        )
-        scope = {"1": "global", "2": "project"}[scope_choice]
-    if not agents:
-        if not interactive:
-            raise click.UsageError("缺少 --agent；非交互或 JSON 模式必须显式指定目标 Agent。")
-        if scope == "project":
-            agents_path = "项目根目录下的 .agents/skills"
-            claude_path = "项目根目录下的 .claude/skills"
-            mimo_path = "项目根目录下的 .mimocode/skills"
-            workbuddy_path = "项目根目录下的 .workbuddy/skills"
-        else:
-            agents_path = "用户目录下的 ~/.agents/skills"
-            claude_path = "用户目录下的 ~/.claude/skills"
-            mimo_path = "用户目录下的 ~/.config/mimocode/skills"
-            workbuddy_path = "用户目录下的 ~/.workbuddy/skills"
-        click.echo(f"请选择 Agent {target_action}目标（可用逗号多选）：")
-        click.echo(
-            f"  1) {agents_path} 兼容组：Codex、Cursor、GitHub Copilot、"
-            "Gemini CLI、OpenCode"
-        )
-        click.echo(f"     以上 Agent 共用同一个目录，{shared_action}。")
-        click.echo(f"  2) {claude_path}：Claude Code")
-        click.echo(f"  3) {mimo_path}：MiMo")
-        click.echo(f"  4) {workbuddy_path}：WorkBuddy")
-        click.echo(f"  5) 全部：{all_action}")
-        raw_groups = click.prompt("请输入目标编号", default="1")
-        group_ids = tuple(item.strip() for item in raw_groups.split(",") if item.strip())
-        unknown = sorted(set(group_ids) - set(_INTERACTIVE_AGENT_GROUPS))
-        if unknown:
-            raise ValueError(f"无效的 Agent 目标编号: {', '.join(unknown)}")
-        agents = tuple(
-            agent
-            for group_id in group_ids
-            for agent in _INTERACTIVE_AGENT_GROUPS[group_id]
-        )
-    return scope, agents
+    scope_action = operation_labels[operation]
+    click.echo(f"请选择{scope_action}范围：")
+    click.echo("  1) 全局：用户目录下的 ~/.agents/skills")
+    click.echo("  2) 项目：项目根目录下的 .agents/skills")
+    scope_choice = click.prompt(
+        "请输入范围编号",
+        type=click.Choice(("1", "2")),
+        default="2",
+    )
+    return {"1": "global", "2": "project"}[scope_choice]
 
 
 def _load_targets(
     ctx: click.Context,
     skill_name: str,
     scope: str | None,
-    agents: tuple[str, ...],
     project_dir: Path | None,
     skill_json: bool,
     operation: str,
 ) -> tuple[Any, list[Any], bool]:
-    """加载内置 Skill 和去重后的目标，并统一转换参数错误。"""
+    """加载内置 Skill 和对应范围的 .agents/skills 目标，并统一转换参数错误。"""
 
     try:
         skill = get_bundled_skill(skill_name)
-        resolved_scope, resolved_agents = _resolve_selection(
+        resolved_scope = _resolve_scope(
             ctx,
             scope,
-            agents,
             skill_json=skill_json,
             operation=operation,
         )
         targets = plan_targets(
             skill_name,
             scope=resolved_scope,
-            agents=resolved_agents,
             project_dir=project_dir,
         )
     except (KeyError, RuntimeError, ValueError) as exc:
@@ -173,7 +105,6 @@ def _output_targets(title: str, results: list[dict[str, Any]], *, as_json: bool)
         return
     rows = [
         [
-            ", ".join(item.get("agents", [])),
             item.get("scope", ""),
             item.get("status", ""),
             item.get("action", "-"),
@@ -181,7 +112,7 @@ def _output_targets(title: str, results: list[dict[str, Any]], *, as_json: bool)
         ]
         for item in results
     ]
-    print_table(title, ["Agent", "范围", "状态", "操作", "路径"], rows)
+    print_table(title, ["范围", "状态", "操作", "路径"], rows)
 
 
 @click.group("skill")
@@ -201,7 +132,6 @@ def skill_install_cmd(
     ctx: click.Context,
     skill_name: str,
     scope: str | None,
-    agents: tuple[str, ...],
     project_dir: Path | None,
     skill_json: bool,
     dry_run: bool,
@@ -209,10 +139,10 @@ def skill_install_cmd(
     yes: bool,
     allow_downgrade: bool,
 ) -> None:
-    """把 CLI 内置 Skill 安装到所选 Agent 的全局或项目目录。"""
+    """把 CLI 内置 Skill 安装到全局或项目级 .agents/skills 目录。"""
 
     skill, targets, as_json = _load_targets(
-        ctx, skill_name, scope, agents, project_dir, skill_json, "install"
+        ctx, skill_name, scope, project_dir, skill_json, "install"
     )
     if force and not dry_run and not yes:
         if as_json or not sys.stdin.isatty():
@@ -242,14 +172,13 @@ def skill_status_cmd(
     ctx: click.Context,
     skill_name: str,
     scope: str | None,
-    agents: tuple[str, ...],
     project_dir: Path | None,
     skill_json: bool,
 ) -> None:
     """检查目标 Skill 的安装、版本、兼容性和用户修改状态。"""
 
     skill, targets, as_json = _load_targets(
-        ctx, skill_name, scope, agents, project_dir, skill_json, "status"
+        ctx, skill_name, scope, project_dir, skill_json, "status"
     )
     try:
         results = [inspect_target(skill, target) for target in targets]
@@ -268,7 +197,6 @@ def skill_uninstall_cmd(
     ctx: click.Context,
     skill_name: str,
     scope: str | None,
-    agents: tuple[str, ...],
     project_dir: Path | None,
     skill_json: bool,
     force: bool,
@@ -277,7 +205,7 @@ def skill_uninstall_cmd(
     """卸载由 wp 管理的 Skill，异常目标在强制模式下保留备份。"""
 
     skill, targets, as_json = _load_targets(
-        ctx, skill_name, scope, agents, project_dir, skill_json, "uninstall"
+        ctx, skill_name, scope, project_dir, skill_json, "uninstall"
     )
     if not yes:
         if as_json or not sys.stdin.isatty():
@@ -288,7 +216,7 @@ def skill_uninstall_cmd(
             else "用户修改或未受管理的目录将拒绝卸载"
         )
         click.confirm(
-            f"将从所选 {len(targets)} 个实际目录卸载 {skill.name} Skill；"
+            f"将从 {targets[0].path} 卸载 {skill.name} Skill；"
             f"受管理且未修改的安装将被删除，{conflict_policy}。是否继续？",
             abort=True,
         )

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict
 from datetime import UTC, datetime
 import json
 import os
@@ -33,7 +32,6 @@ def _target_payload(target: SkillTarget) -> dict[str, Any]:
 
     return {
         "path": str(target.path),
-        "agents": list(target.agents),
         "scope": target.scope,
     }
 

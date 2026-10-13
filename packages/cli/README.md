@@ -51,21 +51,21 @@ wp profile use production
 
 ## Agent Skill 管理
 
-CLI 内置 `web-presentation` Skill，可离线安装到受支持 Agent。交互式终端省略参数时会按实际安装目录分组选择：共用 `.agents/skills` 的兼容 Agent 作为一组，Claude Code、MiMo、WorkBuddy 各自一组；脚本、管道或 JSON 模式必须显式传入参数。
+CLI 内置 `web-presentation` Skill，可离线安装到 `.agents/skills` 目录。交互式终端省略参数时会引导选择全局或项目范围；脚本、管道或 JSON 模式必须显式传入 `--scope`。
 
 ```bash
-# 当前用户全局安装
-wp skill install --scope global --agent all
+# 当前用户全局安装 (~/.agents/skills/web-presentation)
+wp skill install --scope global
 
-# 当前项目安装；默认解析 Git 根目录，也可用 --project-dir 指定
-wp skill install --scope project --agent codex --agent mimo --agent workbuddy
+# 当前项目安装 (<project>/.agents/skills/web-presentation)；默认解析 Git 根目录，也可用 --project-dir 指定
+wp skill install --scope project
 
 # 状态与卸载
-wp skill status --scope global --agent all
-wp skill uninstall --scope global --agent all --yes
+wp skill status --scope global
+wp skill uninstall --scope global --yes
 
 # 只预览目标，或导出根目录包含 SKILL.md 的通用 ZIP
-wp skill install --scope project --agent all --dry-run
+wp skill install --scope project --dry-run
 wp skill export web-presentation
 ```
 
@@ -88,22 +88,13 @@ wp --raw project list
 
 `--json` 输出面向 Agent 的稳定字段；`--raw` 输出 Backend 原始 JSON，二者不能同时使用。预览地址是短期 Preview Artifact 地址，不等同于正式发布地址。
 
-首次使用建议进入智能体将要工作的项目目录，直接运行 `wp skill install`，然后选择 `2. 项目`。项目级安装会进入项目根目录下对应 Agent 的 Skill 目录（如 `.agents/skills`、`.claude/skills`、`.mimocode/skills`、`.workbuddy/skills`），不是安装到 Python 包目录。安装后重新加载智能体窗口或新建会话。
+首次使用建议进入智能体将要工作的项目目录，直接运行 `wp skill install`，然后选择 `2. 项目`。项目级安装会进入项目根目录下的 `.agents/skills/web-presentation`，全局安装会进入 `~/.agents/skills/web-presentation`，不是安装到 Python 包目录。安装后重新加载智能体窗口或新建会话。
 
-目录映射：
-
-| Agent | 项目级 | 全局 |
-| --- | --- | --- |
-| Codex、Cursor、GitHub Copilot、Gemini CLI、OpenCode | `.agents/skills` | `~/.agents/skills` |
-| Claude Code | `.claude/skills` | `~/.claude/skills` |
-| MiMo | `.mimocode/skills` | `~/.config/mimocode/skills` |
-| WorkBuddy | `.workbuddy/skills` | `~/.workbuddy/skills` |
-
-Skill 与 CLI 一起发布，但使用独立版本。`wp skill status` 会识别缺失、过期、较新、不兼容、用户修改和未受管理等状态；普通升级不会覆盖用户修改，`--force` 会先保留同级备份。CLI 升级不会隐式改写已安装 Skill，需要重新运行 `wp skill install` 完成同步。
+Skill 与 CLI 一起发布，但使用独立版本。`wp skill status` 会识别缺失、过期、较新、不兼容、用户修改和未受管理等状态；普通升级不会覆盖用户修改，`--force` 会先保留同级备份。CLI 升级不会隐式改写已安装 Skill，需要重新运行 `wp skill install` 完成同步。若此前版本曾向 `.claude/skills`、`.mimocode/skills`、`~/.config/mimocode/skills` 或 `.workbuddy/skills` 安装过副本，升级后请手动移除这些旧目录，统一使用 `.agents/skills`。
 
 当前版本关系：CLI `0.3.1` 内置 `web-presentation` Skill `1.3.3`，Skill 声明的 CLI 兼容范围为 `>=0.3.0,<0.4.0`。构建时会把这组关系与规范化内容 SHA-256 写入 manifest。Skill `1.3.3` 补充图片、公式、数据图表和流程图的 Runtime 组件选择，以及共享资源 name 与直接内容 content 两种使用方式。
 
-Windsurf 不属于本地目录安装目标。`wp skill export` 生成的标准 ZIP 可用于支持本地上传的产品；CLI 不从 URL 或第三方仓库下载 Skill。
+`wp skill export` 生成的标准 ZIP 可用于支持本地上传的产品；CLI 不从 URL 或第三方仓库下载 Skill。
 
 ## 复制给智能体：安装 CLI 和 Skill
 
@@ -114,7 +105,7 @@ Windsurf 不属于本地目录安装目标。`wp skill export` 生成的标准 Z
 
 先确认当前环境有 Python 3.11+，检查 `wp` 是否已安装；未安装时优先运行 `uv tool install web-presentation-cli`，再用 `wp --version` 验证。已安装时不要擅自升级或降级。
 
-CLI 可用后，立即在当前项目运行 `wp skill install`，选择项目级安装和当前智能体；不要在安装 Skill 之前配置登录或工作空间。随后运行 `wp skill status` 验证。遇到覆盖、强制安装或降级时先停下确认。安装成功后告诉我重新加载智能体或新建会话，后续登录和工作空间配置由 `web-presentation` Skill 指引。
+CLI 可用后，立即在当前项目运行 `wp skill install --scope project`；不要在安装 Skill 之前配置登录或工作空间。随后运行 `wp skill status --scope project` 验证。遇到覆盖、强制安装或降级时先停下确认。安装成功后告诉我重新加载智能体或新建会话，后续登录和工作空间配置由 `web-presentation` Skill 指引。
 ```
 
 安装成功并重新加载后，可以对智能体说：`请使用 $web-presentation 完成首次登录和工作空间配置。`
