@@ -118,6 +118,9 @@ CLI 可用后，立即在当前项目运行 `wp skill install --scope project`�
 wp system health
 wp project list
 wp project configuration get <project_id>
+wp --json project slideshow get <project_id>
+wp --json project slideshow update <project_id> --slideshow-file .tmp/web-presentation/slideshow.json --idempotency-key <key>
+wp --json project route update <project_id> --edit-file .tmp/web-presentation/route-edits.json --idempotency-key <key>
 wp page list --project-id <project_id>
 wp page dependencies <page_id>
 wp component list --scope suggested --project-id <project_id>

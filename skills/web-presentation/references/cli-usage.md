@@ -88,6 +88,8 @@ wp --json preview get --page-id <page_id>
 - `--preview-schema-file`：组件预览 Schema JSON 对象；
 - `--content-file`：完整 UTF-8 文本；
 - `--route-file`：完整路由树 JSON；
+- `--edit-file`：路由编辑 JSON 数组，用于排序、隐藏与逐页放映覆盖；
+- `--slideshow-file`：完整项目默认放映配置；
 - `--ids-file`：只含正整数的 JSON 数组。
 
 具体根节点、字段、枚举和参数组合只以对应命令 `--help` 中的当前 OpenAPI Schema 为准。示例路径默认相对于 `.tmp/web-presentation/`。

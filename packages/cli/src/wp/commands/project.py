@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 import click
 
 from wp.client import ApiClient, ApiClientError
@@ -14,10 +16,147 @@ from wp.commands.common import (
     idempotency_key_option,
     output_result,
     read_json_file,
+    require_array,
     require_ids,
     require_object,
 )
 from wp.openapi_help import contract, openapi_command
+
+# 路由编辑允许的设置字段；route 只用于定位，不能改名或移动节点。
+ROUTE_EDIT_KEYS = frozenset({"route", "order", "hidden", "group_title", "transition", "advance"})
+SLIDESHOW_CAPABILITY_MISSING = "SLIDESHOW_CAPABILITY_MISSING"
+
+
+def _route_write_page_fields(node: dict[str, Any], *, child: bool) -> dict[str, Any]:
+    """把页面节点转换为写入 Schema；保留原始覆盖值，过滤只读派生字段。"""
+
+    fields: dict[str, Any] = {
+        "route": node.get("route"),
+        "order": node.get("order"),
+        "hidden": bool(node.get("hidden", False)),
+        "page_id": node.get("page_id"),
+        "transition": node.get("transition"),
+        "advance": node.get("advance"),
+    }
+    if not child:
+        fields = {"route_type": "page", **fields}
+    return fields
+
+
+def build_route_tree_write_payload(tree: Any) -> dict[str, Any]:
+    """把 route-tree 响应转换为整树写入载荷，丢弃 id/生效值等只读字段。"""
+
+    if not isinstance(tree, dict) or not isinstance(tree.get("routes"), list):
+        raise click.ClickException("路由树响应缺少 routes 数组，无法安全写回。")
+    routes: list[dict[str, Any]] = []
+    for node in tree["routes"]:
+        if not isinstance(node, dict):
+            raise click.ClickException("路由树节点不是 JSON 对象，无法安全写回。")
+        route_type = node.get("route_type")
+        if route_type == "group":
+            children = node.get("children") or []
+            if not isinstance(children, list):
+                raise click.ClickException("分组节点的 children 必须是数组。")
+            if any(not isinstance(child, dict) for child in children):
+                raise click.ClickException("分组节点的 children 只能包含 JSON 对象。")
+            routes.append({
+                "route_type": "group",
+                "route": node.get("route"),
+                "order": node.get("order"),
+                "hidden": bool(node.get("hidden", False)),
+                "group_title": node.get("group_title"),
+                "children": [_route_write_page_fields(child, child=True) for child in children],
+            })
+        elif route_type == "page":
+            routes.append(_route_write_page_fields(node, child=False))
+        else:
+            raise click.ClickException(f"未知路由节点类型：{route_type}")
+    return {"routes": routes}
+
+
+def require_slideshow_route_tree(tree: dict[str, Any]) -> None:
+    """旧服务缺少放映覆盖/生效字段时明确失败，避免整树写回静默覆盖语义。"""
+
+    if not isinstance(tree, dict) or not isinstance(tree.get("routes"), list):
+        raise click.ClickException("路由树响应缺少 routes 数组，无法安全写回。")
+    nodes = []
+    for node in tree.get("routes") or []:
+        if not isinstance(node, dict):
+            continue
+        if node.get("route_type") == "page":
+            nodes.append(node)
+        elif node.get("route_type") == "group":
+            nodes.extend(child for child in node.get("children") or [] if isinstance(child, dict))
+    if not nodes:
+        return
+    if not all("effective_slideshow" in node and "transition" in node and "advance" in node for node in nodes):
+        raise click.ClickException(
+            f"[{SLIDESHOW_CAPABILITY_MISSING}] 当前服务端未声明放映配置能力，"
+            "无法安全保留路由覆盖；请升级服务端后重试。"
+        )
+
+
+def _normalize_route_selector(value: Any) -> str:
+    """把编辑选择器统一为不带首尾斜杠的完整路由路径。"""
+
+    if not isinstance(value, str):
+        raise click.ClickException("路由编辑的 route 必须是字符串。")
+    normalized = value.strip().strip("/")
+    if not normalized:
+        raise click.ClickException("路由编辑的 route 不能为空。")
+    return normalized
+
+
+def apply_route_edits(payload: dict[str, Any], edits: list[Any]) -> None:
+    """按完整路由路径应用排序、隐藏与覆盖编辑；transition/advance 可显式 null。"""
+
+    index: dict[str, tuple[dict[str, Any], dict[str, Any] | None, bool]] = {}
+    for node in payload["routes"]:
+        index[_normalize_route_selector(node.get("route"))] = (node, None, node["route_type"] == "group")
+        for child in node.get("children") or []:
+            index[f"{_normalize_route_selector(node.get('route'))}/{_normalize_route_selector(child.get('route'))}"] = (
+                child, node, False,
+            )
+    seen: set[str] = set()
+    for edit in edits:
+        if not isinstance(edit, dict):
+            raise click.ClickException("每条路由编辑必须是 JSON 对象。")
+        unknown = set(edit) - ROUTE_EDIT_KEYS
+        if unknown:
+            raise click.ClickException(f"路由编辑包含未知字段：{', '.join(sorted(unknown))}。")
+        selector = _normalize_route_selector(edit.get("route"))
+        if selector in seen:
+            raise click.ClickException(f"路由编辑重复选择：{selector}。")
+        seen.add(selector)
+        target = index.get(selector)
+        if target is None:
+            raise click.ClickException(f"路由不存在：{selector}。")
+        node, parent, is_group = target
+        if len(edit) == 1:
+            raise click.ClickException(f"路由编辑 {selector} 没有提供任何设置。")
+        if "group_title" in edit:
+            if not is_group or parent is not None:
+                raise click.ClickException(f"只有顶层分组可以设置 group_title：{selector}。")
+            node["group_title"] = edit["group_title"]
+        if "order" in edit:
+            order = edit["order"]
+            if isinstance(order, bool) or not isinstance(order, int):
+                raise click.ClickException(f"路由 {selector} 的 order 必须是整数。")
+            node["order"] = order
+        if "hidden" in edit:
+            hidden = edit["hidden"]
+            if not isinstance(hidden, bool):
+                raise click.ClickException(f"路由 {selector} 的 hidden 必须是布尔值。")
+            node["hidden"] = hidden
+        for key in ("transition", "advance"):
+            if key not in edit:
+                continue
+            if is_group:
+                raise click.ClickException(f"分组节点不接受 {key} 覆盖：{selector}。")
+            value = edit[key]
+            if value is not None and not isinstance(value, dict):
+                raise click.ClickException(f"路由 {selector} 的 {key} 必须是对象或 null。")
+            node[key] = value
 
 
 @click.group("project")
@@ -169,6 +308,63 @@ def update_project_configuration_cmd(ctx: click.Context, project_id: int, payloa
         handle_api_error("更新项目配置失败", err)
 
 
+@project_group.group("slideshow")
+def project_slideshow_group() -> None:
+    """项目默认放映配置（动画、翻页、循环与自动开始）。"""
+
+
+@openapi_command(project_slideshow_group, "get", contract("GET", "/api/v1/projects/{project_id}"))
+@click.argument("project_id", type=int)
+@click.pass_context
+def get_project_slideshow_cmd(ctx: click.Context, project_id: int) -> None:
+    """读取项目默认放映配置。"""
+
+    try:
+        project = get_client(ctx).get(f"/projects/{project_id}")
+        if "slideshow" not in project:
+            raise click.ClickException(
+                f"[{SLIDESHOW_CAPABILITY_MISSING}] 当前服务端未声明放映配置能力；请升级服务端后重试。"
+            )
+        output_result(ctx, project.get("slideshow"))
+    except ApiClientError as err:
+        handle_api_error("获取项目放映配置失败", err)
+
+
+@openapi_command(
+    project_slideshow_group,
+    "update",
+    contract("PATCH", "/api/v1/projects/{project_id}"),
+    examples=(
+        "wp project slideshow update 7 --slideshow-file .tmp/web-presentation/slideshow-7.json --idempotency-key project-7-slideshow",
+    ),
+)
+@click.argument("project_id", type=int)
+@click.option(
+    "--slideshow-file",
+    type=click.Path(exists=True, dir_okay=False),
+    required=True,
+    help="完整放映配置 JSON；可直接提供 slideshow 对象或包含 slideshow 字段的对象",
+)
+@idempotency_key_option
+@click.pass_context
+def update_project_slideshow_cmd(ctx: click.Context, project_id: int, slideshow_file: str) -> None:
+    """替换项目默认放映配置；必须提供完整对象，不存在的字段不会被猜测补全。"""
+
+    try:
+        payload = require_object(read_json_file(slideshow_file, label="放映配置"), label="放映配置")
+        slideshow = payload.get("slideshow", payload)
+        if not isinstance(slideshow, dict):
+            raise click.ClickException("放映配置必须是完整 JSON 对象。")
+        updated = get_client(ctx).patch(f"/projects/{project_id}", json_data={"slideshow": slideshow})
+        if "slideshow" not in updated:
+            raise click.ClickException(
+                f"[{SLIDESHOW_CAPABILITY_MISSING}] 服务端未返回放映配置，可能不支持该能力；请升级服务端后重试。"
+            )
+        output_result(ctx, updated["slideshow"])
+    except ApiClientError as err:
+        handle_api_error("更新项目放映配置失败", err)
+
+
 @project_group.group("route")
 def project_route_group() -> None:
     """项目路由树。"""
@@ -206,6 +402,39 @@ def replace_project_route_cmd(ctx: click.Context, project_id: int, route_file: s
         output_result(ctx, get_client(ctx).put(f"/projects/{project_id}/route-tree", json_data=payload))
     except ApiClientError as err:
         handle_api_error("替换项目路由树失败", err)
+
+
+@openapi_command(
+    project_route_group,
+    "update",
+    contract("GET", "/api/v1/projects/{project_id}/route-tree"),
+    contract("PUT", "/api/v1/projects/{project_id}/route-tree"),
+    examples=(
+        "wp project route update 7 --edit-file .tmp/web-presentation/route-edits-7.json --idempotency-key project-7-route-edit",
+    ),
+)
+@click.argument("project_id", type=int)
+@click.option(
+    "--edit-file",
+    type=click.Path(exists=True, dir_okay=False),
+    required=True,
+    help="路由编辑 JSON 数组；每项用 route 定位，可设置 order、hidden、group_title、transition、advance",
+)
+@idempotency_key_option
+@click.pass_context
+def update_project_route_cmd(ctx: click.Context, project_id: int, edit_file: str) -> None:
+    """读取当前路由树，应用编辑后整树写回；自动保留原始覆盖并过滤只读生效值。"""
+
+    try:
+        client = get_client(ctx)
+        tree = client.get(f"/projects/{project_id}/route-tree")
+        require_slideshow_route_tree(tree)
+        payload = build_route_tree_write_payload(tree)
+        edits = require_array(read_json_file(edit_file, label="路由编辑"), label="路由编辑")
+        apply_route_edits(payload, edits)
+        output_result(ctx, client.put(f"/projects/{project_id}/route-tree", json_data=payload))
+    except ApiClientError as err:
+        handle_api_error("更新项目路由树失败", err)
 
 
 @openapi_command(project_group, "apply-style", contract("POST", "/api/v1/projects/{project_id}/apply-style"))

@@ -22,6 +22,7 @@ Web Presentation 的核心边界是“当前工作空间”。所有资源归属
 ## 归属、引用和快照不要混淆
 
 - 项目 configuration 是项目自己的展示快照；style 只是可复用模板，应用 style 后不会持续同步。
+- 项目 slideshow 保存默认整页动画、翻页方式、循环与自动开始；路由节点可整组覆盖 `transition`/`advance`，`null` 表示继承。保存设置不代表已控制浏览器播放。
 - 项目 route tree 是导航关系；页面 `project_id` 是归属关系；两者不是同一份数据。
 - `suggested_components` 和项目建议资源是推荐集合，不改变组件/资源的工作空间归属，也不限制当前空间内其它可见对象。
 - 页面/组件 `dependencies` 是当前版本源码真实依赖，不能用名称搜索结果替代。
