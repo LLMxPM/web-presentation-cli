@@ -62,6 +62,54 @@ def test_page_and_component_projections_hide_source_content() -> None:
     assert "preview_schema" not in component["items"][0]
 
 
+def test_asset_list_projects_model3d_summary_without_full_analysis() -> None:
+    """资源列表应给出三维选择摘要，并继续隐藏完整分析元数据。"""
+
+    result = project_response(
+        {
+            "items": [
+                {
+                    "id": 42,
+                    "name": "product",
+                    "asset_type": "model3d",
+                    "analysis_metadata": {
+                        "kind": "model3d",
+                        "model3d": {
+                            "format": "glb",
+                            "scene_count": 2,
+                            "cameras": [{"index": 0}, {"index": 1}],
+                            "animations": [{"index": 0}],
+                            "warnings": ["示例 warning"],
+                        },
+                    },
+                    "internal_debug": "drop",
+                },
+                {
+                    "id": 43,
+                    "name": "hero",
+                    "asset_type": "image",
+                    "analysis_metadata": {"kind": "icon", "icon": {"width": 32}},
+                },
+            ],
+            "page": 1,
+            "page_size": 50,
+            "total": 2,
+        },
+        "asset_list",
+    )
+
+    model_item, image_item = result["items"]
+    assert model_item["model3d"] == {
+        "format": "glb",
+        "scene_count": 2,
+        "camera_count": 2,
+        "animation_count": 1,
+    }
+    assert "analysis_metadata" not in model_item
+    assert "internal_debug" not in model_item
+    assert "model3d" not in image_item
+
+
 def test_theme_validation_and_archive_projections_follow_profiles() -> None:
     """主题嵌套详情保留，诊断和批量归档字段按场景收敛。"""
 

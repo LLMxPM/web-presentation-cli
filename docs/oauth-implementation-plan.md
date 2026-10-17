@@ -1,6 +1,6 @@
 # CLI OAuth 实施计划
 
-规划日期：2026-10-05。状态：计划已建立，OAuth 登录尚未实现。开发分支为本地 `oauth`，从 `master` 的 `481a586` 创建；当前 CLI 版本为 `0.3.1`。本轮只建立分支和计划，不改现有登录行为、不发布版本。
+规划日期：2026-10-05。状态：计划已建立，OAuth 登录尚未实现。开发分支为本地 `oauth`，从 `master` 的 `481a586` 创建；规划时 CLI 版本为 `0.3.1`。本轮只建立分支和计划，不改现有登录行为、不发布版本。
 
 平台评估基线为 `web-presentation` 的 `mcp` 分支 `45678f3`。[主仓实施计划](https://github.com/LLMxPM/web-presentation/blob/mcp/docs/developer/cli-oauth-implementation-plan.md)负责服务端客户端规则、资源/audience、凭证、DTO、权限和平台验收；本计划负责 CLI、同步客户端、Profile、打包和 Skill。两份文档当前在本地工作树，跨仓 GitHub 链接在推送相应分支后可用。实际联测必须另行固定双方完整 commit，不能把评估基线当成支持 OAuth 的最低版本。
 

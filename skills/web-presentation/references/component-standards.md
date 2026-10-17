@@ -12,7 +12,9 @@
 
 ## 源码与 preview schema
 
-组件 content 必须是完整、可运行的 Vue 3 SFC，遵守 [页面源码规范](./source-standards.md) 中的 Runtime、Tailwind、主题、字体和资源边界。
+组件 content 必须是完整、可运行的 Vue 3 SFC，遵守 [页面源码规范](./source-standards.md) 中的 Runtime、Tailwind、主题、字体、资源边界和动态资源名规则。
+
+组件展示三维模型时使用 `AssetModel`，只引用真实 `model3d` 资源 `name`，容器声明明确宽高；相机索引与显式位置/目标互斥，位置和目标必须成对。`preview_schema` 的 presets 若设置模型 `name`，必须使用真实资源，不要编造模型名或传入 URL、路径、GLB 文本。
 
 `preview_schema` 必须是合法 JSON 对象，结构通常为：
 

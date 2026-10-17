@@ -92,7 +92,7 @@ wp --raw project list
 
 Skill 与 CLI 一起发布，但使用独立版本。`wp skill status` 会识别缺失、过期、较新、不兼容、用户修改和未受管理等状态；普通升级不会覆盖用户修改，`--force` 会先保留同级备份。CLI 升级不会隐式改写已安装 Skill，需要重新运行 `wp skill install` 完成同步。若此前版本曾向 `.claude/skills`、`.mimocode/skills`、`~/.config/mimocode/skills` 或 `.workbuddy/skills` 安装过副本，升级后请手动移除这些旧目录，统一使用 `.agents/skills`。
 
-当前版本关系：CLI `0.3.1` 内置 `web-presentation` Skill `1.3.3`，Skill 声明的 CLI 兼容范围为 `>=0.3.0,<0.4.0`。构建时会把这组关系与规范化内容 SHA-256 写入 manifest。Skill `1.3.3` 补充图片、公式、数据图表和流程图的 Runtime 组件选择，以及共享资源 name 与直接内容 content 两种使用方式。
+当前版本关系：CLI `0.3.2` 内置 `web-presentation` Skill `1.3.4`，Skill 声明的 CLI 兼容范围为 `>=0.3.2,<0.4.0`。之所以提高下限，是因为 Skill 已使用 `asset upload --type model3d`、`asset replace` 和 `asset download`，这些能力从 CLI `0.3.2` 才提供。构建时会把这组关系与规范化内容 SHA-256 写入 manifest。Skill `1.3.4` 补充三维模型（自包含 GLB）的资源发现、`AssetModel` 引用、相机配置、静态姿态边界和视觉复核；CLI 同步新增 `model3d` 类型、按基线替换与原始文件下载。
 
 `wp skill export` 生成的标准 ZIP 可用于支持本地上传的产品；CLI 不从 URL 或第三方仓库下载 Skill。
 
@@ -121,18 +121,25 @@ wp project configuration get <project_id>
 wp page list --project-id <project_id>
 wp page dependencies <page_id>
 wp component list --scope suggested --project-id <project_id>
+wp --json asset list --type model3d
 wp asset content get <asset_id>
+wp asset replace <asset_id> .tmp/web-presentation/product-v2.glb --expected-file-hash <current_file_hash> --idempotency-key <key>
+wp asset download <asset_id> --output .tmp/web-presentation/product.glb
 wp theme list
 wp style list
 wp job wait <job_id>
 ```
 
-复杂写入参数使用 `--payload-file`、`--edits-file`、`--content-file`、`--route-file` 和 `--ids-file`。Build、产物下载、Agent 运行、图片能力、Restore 和 MCP 不属于当前 CLI。
+复杂写入参数使用 `--payload-file`、`--edits-file`、`--content-file`、`--route-file` 和 `--ids-file`。Build、构建产物下载、Agent 运行、图片能力、Restore 和 MCP 不属于当前 CLI。
 
 叶子命令的 `--help` 会从当前 Profile 的 Backend `/openapi.json` 加载请求参数和完整 Schema；契约获取或解析失败时不输出部分帮助，stderr 输出具体错误并退出 1，不缓存 Schema。
 
 写入命令支持 `--idempotency-key <key>`；网络超时后需要重放同一业务请求时复用原 key，不要把同一个 key 用于不同请求。
 
+
+### 0.3.2 行为变更
+
+资源命令支持三维模型：`--type` 新增 `model3d`，`asset upload` 可上传自包含 GLB；新增 `asset replace`，按资源 ID 携带当前 `file_hash` 基线和幂等键替换文件；新增 `asset download`，下载当前或指定 `hash` 的原始二进制文件。`--json asset list` 为三维资源补充 `format`、`scene_count`、`camera_count` 和 `animation_count` 摘要，完整分析元数据仍通过 `asset get` 读取。内置 Skill `1.3.4` 同步三维资源工作流与静态姿态、相机互斥、动态资源名构建约束。
 
 ### 0.3.1 行为变更
 

@@ -74,8 +74,8 @@ wp --json preview get --page-id <page_id>
 
 约定：
 
-- 输入载体（payload、edits、候选/写出的 SFC、route tree、资源文本与元数据）写在 `.tmp/web-presentation/` 下；文件名尽量带对象类型与 ID，例如 `page-42.vue`、`edits-42.json`、`component-7.vue`、`route-tree.json`、`asset.json`；
-- 截图等输出证据写在 `.tmp/web-presentation/shot/`，例如 `shot/page-42.png`；
+- 输入载体（payload、edits、候选/写出的 SFC、route tree、资源文本与元数据、待上传模型）写在 `.tmp/web-presentation/` 下；文件名尽量带对象类型与 ID，例如 `page-42.vue`、`edits-42.json`、`component-7.vue`、`route-tree.json`、`product.glb`；
+- 截图等输出证据写在 `.tmp/web-presentation/shot/`，例如 `shot/page-42.png`；下载的原始资源文件写入 `.tmp/web-presentation/`，不要写回 Skill 或包目录；
 - 用户提供的原始素材保持其真实路径；智能体自行生成或落盘的中间文件一律进入上述目录；
 - 汇报时给出相对路径即可；这些文件可随时删除，交付事实以 Backend 对象、Job 终态和重新读取结果为准。
 

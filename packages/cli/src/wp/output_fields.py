@@ -132,6 +132,7 @@ ASSET_FIELDS = (
     "created_at",
     "updated_at",
 )
+# analysis_metadata 不在列表完整暴露；三维摘要由 output_profiles 按需派生。
 ASSET_LIST_FIELDS = tuple(
     field
     for field in ASSET_FIELDS

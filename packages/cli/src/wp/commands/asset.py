@@ -1,8 +1,10 @@
-"""文件功能：提供工作空间资源的查询、上传、文本内容、复制、更新与归档命令。"""
+"""文件功能：提供工作空间资源的查询、上传、替换、下载、文本内容、复制、更新与归档命令。"""
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
+import uuid
 
 import click
 
@@ -18,11 +20,28 @@ from wp.commands.common import (
     require_ids,
     require_object,
 )
-from wp.formatter import print_table
+from wp.formatter import print_error, print_success, print_table
 from wp.openapi_help import contract, openapi_command
 
 
-ASSET_TYPES = ["image", "icon", "font", "video", "drawio", "mermaid", "chart", "formula"]
+ASSET_TYPES = ["image", "icon", "font", "video", "drawio", "mermaid", "chart", "formula", "model3d"]
+
+
+def _write_bytes_atomic(save_path: Path, content: bytes) -> None:
+    """原子写入下载文件，失败时清理临时文件。"""
+
+    tmp_path = save_path.with_name(f".{save_path.name}.tmp.{uuid.uuid4().hex[:8]}")
+    try:
+        save_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path.write_bytes(content)
+        os.replace(tmp_path, save_path)
+    except OSError:
+        if tmp_path.exists():
+            try:
+                tmp_path.unlink()
+            except OSError:
+                pass
+        raise
 
 
 @click.group("asset")
@@ -65,6 +84,68 @@ def get_asset_cmd(ctx: click.Context, asset_id: int) -> None:
 
 @openapi_command(
     asset_group,
+    "download",
+    contract("GET", "/api/v1/assets/{asset_id}/file"),
+    examples=(
+        "wp asset download 42 --output .tmp/web-presentation/product.glb",
+        "wp --json asset download 42 --hash <current_file_hash> --output .tmp/web-presentation/product.glb",
+    ),
+)
+@click.argument("asset_id", type=int)
+@click.option("--output", "-o", help="保存路径或已存在的目录；默认使用资源 original_name")
+@click.option("--hash", "file_hash", help="指定期望的当前 file_hash；与服务端不一致时拒绝下载")
+@click.pass_context
+def download_asset_cmd(ctx: click.Context, asset_id: int, output: str | None, file_hash: str | None) -> None:
+    """下载资源当前或指定版本的原始二进制文件。"""
+
+    try:
+        client = get_client(ctx)
+        asset = client.get(f"/assets/{asset_id}")
+        if not isinstance(asset, dict):
+            raise click.ClickException("资源详情响应格式非法。")
+        target_hash = str(file_hash or asset.get("file_hash") or "").strip()
+        params = {"download": 1}
+        if target_hash:
+            params["hash"] = target_hash
+        headers, content = client.get_bytes(f"/assets/{asset_id}/file", params=params)
+        original_name = Path(str(asset.get("original_name") or asset.get("name") or f"asset-{asset_id}")).name
+        save_path = Path(output) if output else Path(original_name)
+        if save_path.is_dir():
+            save_path = save_path / original_name
+        try:
+            _write_bytes_atomic(save_path, content)
+        except OSError as exc:
+            print_error(f"写入资源文件 '{save_path}' 失败: {exc}")
+            raise SystemExit(1) from exc
+        result_payload = {
+            "asset_id": asset_id,
+            "name": asset.get("name"),
+            "asset_type": asset.get("asset_type"),
+            "file_hash": target_hash or headers.get("etag"),
+            "saved_file": str(save_path.resolve()),
+            "size_bytes": len(content),
+        }
+        if ctx.obj.get("as_json"):
+            output_result(ctx, result_payload)
+            return
+        print_success(f"已下载资源 (ID: {asset_id}) 至 [bold]{save_path}[/bold]")
+        print_table(
+            "资源下载信息",
+            ["属性", "值"],
+            [
+                ["资源 ID", str(asset_id)],
+                ["资源名称", str(asset.get("name") or "-")],
+                ["文件 hash", target_hash or "-"],
+                ["文件大小", f"{len(content)} 字节"],
+                ["保存路径", str(save_path.resolve())],
+            ],
+        )
+    except ApiClientError as err:
+        handle_api_error("下载资源文件失败", err)
+
+
+@openapi_command(
+    asset_group,
     "upload",
     contract("POST", "/api/v1/assets"),
     examples=(
@@ -78,7 +159,7 @@ def get_asset_cmd(ctx: click.Context, asset_id: int) -> None:
 @idempotency_key_option
 @click.pass_context
 def upload_asset_cmd(ctx: click.Context, file_path: str, asset_type: str, name: str | None, description: str | None) -> None:
-    """上传二进制或图片资源。"""
+    """上传二进制、图片或三维模型资源。"""
 
     path = Path(file_path)
     try:
@@ -91,6 +172,35 @@ def upload_asset_cmd(ctx: click.Context, file_path: str, asset_type: str, name: 
         output_result(ctx, result)
     except ApiClientError as err:
         handle_api_error("上传资源失败", err)
+
+
+@openapi_command(
+    asset_group,
+    "replace",
+    contract("POST", "/api/v1/assets/{asset_id}/replace"),
+    examples=(
+        "wp asset replace 42 .tmp/web-presentation/product-v2.glb --expected-file-hash <current_file_hash> --idempotency-key asset-product-replace",
+    ),
+)
+@click.argument("asset_id", type=int)
+@click.argument("file_path", type=click.Path(exists=True, dir_okay=False))
+@click.option("--expected-file-hash", required=True, help="当前资源 file_hash 版本基线；三维资源替换必填")
+@idempotency_key_option
+@click.pass_context
+def replace_asset_cmd(ctx: click.Context, asset_id: int, file_path: str, expected_file_hash: str) -> None:
+    """按资源 ID 替换文件内容，保留 id、name 与 asset_type。"""
+
+    path = Path(file_path)
+    try:
+        with path.open("rb") as file_obj:
+            result = get_client(ctx).upload(
+                f"/assets/{asset_id}/replace",
+                files={"file": (path.name, file_obj)},
+                data={"expected_file_hash": expected_file_hash.strip()},
+            )
+        output_result(ctx, result, profile="asset_detail")
+    except ApiClientError as err:
+        handle_api_error("替换资源文件失败", err)
 
 
 @openapi_command(

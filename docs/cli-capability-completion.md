@@ -15,7 +15,7 @@
 | 项目 | `list`, `get`, `create`, `update`, `archive`, `configuration get/update`, `route get/replace`, `apply-style`, `build-assets update` |
 | 页面 | `list`, `get`, `create`, `copy`, `update`, `source`, `edit`, `version list/get`, `dependencies`, `validate`, `screenshot`, `archive` |
 | 组件 | `list`, `get`, `create`, `update`, `edit`, `version list/get`, `dependencies`, `validate`, `publish`, `archive` |
-| 资源 | `list`, `get`, `create`, `upload`, `update`, `copy`, `content get/update/preview`, `tags list`, `archive` |
+| 资源 | `list`, `get`, `create`, `upload`, `replace`, `download`, `update`, `copy`, `content get/update/preview`, `tags list`, `archive`；`--type` 支持 `model3d` |
 | 主题 | `list`, `get`, `create`, `update`, `copy`, `archive` |
 | 样式 | `list`, `get`, `create`, `update`, `copy`, `archive` |
 | Mutation Job | `wp job get`, `wait`, `cancel`, `retry` |
@@ -42,6 +42,15 @@ wp page archive --ids-file .tmp/web-presentation/page-ids.json --yes
 ```
 
 页面和组件创建、源码编辑、组件复杂元数据更新默认等待 Mutation Job 终态；使用 `--no-wait` 只返回 Job，再使用 `wp job wait <job_id>` 轮询。
+
+三维资源使用 `asset upload --type model3d` 上传自包含 GLB；替换必须提供当前 `file_hash` 基线：
+
+```bash
+wp asset replace 42 .tmp/web-presentation/product-v2.glb --expected-file-hash <current_file_hash> --idempotency-key <key>
+wp asset download 42 --output .tmp/web-presentation/product.glb
+```
+
+`--json asset list` 为 `model3d` 项附带 `format`、`scene_count`、`camera_count` 和 `animation_count` 摘要，完整分析元数据仍只在 `asset get` 中返回。
 
 ## 明确不支持
 

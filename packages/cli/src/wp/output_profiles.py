@@ -45,6 +45,46 @@ def _project_collection(value: Any, item_fields: Sequence[str]) -> Any:
     return result
 
 
+def _model3d_summary(value: Any) -> dict[str, Any] | None:
+    """从完整分析元数据提取三维模型列表摘要；非三维资源返回 None。"""
+
+    if not isinstance(value, Mapping) or value.get("kind") != "model3d":
+        return None
+    model = value.get("model3d")
+    if not isinstance(model, Mapping):
+        return None
+    cameras = model.get("cameras")
+    animations = model.get("animations")
+    return {
+        "format": model.get("format"),
+        "scene_count": model.get("scene_count", 0),
+        "camera_count": len(cameras) if isinstance(cameras, list) else 0,
+        "animation_count": len(animations) if isinstance(animations, list) else 0,
+    }
+
+
+def _project_asset_list(value: Any) -> Any:
+    """投影资源列表，并保留三维模型的选择摘要而不暴露完整分析元数据。"""
+
+    if not isinstance(value, Mapping):
+        return value
+    result = _pick(value, PAGINATION_FIELDS)
+    items = value.get("items")
+    if isinstance(items, list):
+        projected_items = []
+        for item in items:
+            if not isinstance(item, Mapping):
+                projected_items.append(item)
+                continue
+            projected = _pick(item, ASSET_LIST_FIELDS)
+            summary = _model3d_summary(item.get("analysis_metadata"))
+            if summary is not None:
+                projected["model3d"] = summary
+            projected_items.append(projected)
+        result["items"] = projected_items
+    return result
+
+
 def project_response(value: Any, profile: str, *, detail: bool = False) -> Any:
     """根据命令返回类型生成稳定的 Agent JSON；raw 模式由调用方提前绕过。"""
 
@@ -69,7 +109,7 @@ def project_response(value: Any, profile: str, *, detail: bool = False) -> Any:
     if profile == "component_detail":
         return _pick(value, COMPONENT_DETAIL_FIELDS) if isinstance(value, Mapping) else value
     if profile == "asset_list":
-        return _project_collection(value, ASSET_LIST_FIELDS)
+        return _project_asset_list(value)
     if profile == "asset_detail":
         return _pick(value, ASSET_FIELDS) if isinstance(value, Mapping) else value
     if profile == "theme":

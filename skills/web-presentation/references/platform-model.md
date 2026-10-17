@@ -11,7 +11,7 @@ Web Presentation 的核心边界是“当前工作空间”。所有资源归属
 | 路由树 | 页面顺序、分组、路径和可见性 | 修改路由不修改页面源码；替换是全量树操作 | `project route get/replace` |
 | 页面 | 项目内实际内容页 | 保存 Vue SFC、标题/摘要/备注、当前版本和截图信息 | `page get/source/version/dependencies` |
 | 工作空间组件 | 跨页面复用的 Vue 代码资产 | 草稿和发布版本分开；页面应引用已发布版本 | `component get/edit/publish/version/dependencies` |
-| 资源 | 图片、视频、图标、SVG、Draw.io、Mermaid、Chart、Formula 和字体等 | 通过稳定 `name` 引用；`render_type` 决定 Runtime 渲染方式 | `asset list/get/content` |
+| 资源 | 图片、视频、三维模型、图标、SVG、Draw.io、Mermaid、Chart、Formula 和字体等 | 通过稳定 `name` 引用；`render_type` 决定 Runtime 渲染方式；三维资源带格式、场景、相机和动画摘要 | `asset list/get/content/download` |
 | 主题 | 共享视觉语义和色板 | key 创建后不可改；外部主题维护只涉及公开名称、说明和色板字段 | `theme list/get/create/update/copy` |
 | 样式 | 可复用的项目展示配置模板 | 应用到项目时复制成独立快照，后续不实时继承 | `style list/get/create/update/copy` |
 | 字体 | 注册的字体族/字体文件声明 | 只读查询；先有资源，再由平台注册/下发 | `font list` |
@@ -27,6 +27,7 @@ Web Presentation 的核心边界是“当前工作空间”。所有资源归属
 - 页面/组件 `dependencies` 是当前版本源码真实依赖，不能用名称搜索结果替代。
 - 组件草稿不是稳定公共能力；引用前查询发布版本和真实 `import_path`。
 - 归档对象退出默认查询与操作边界；首版没有永久删除和 Restore。项目归档不会级联归档其页面、路由或共享资产。
+- 替换资源文件会更新当前与历史页面预览；独立构建保留当次构建的资源快照。三维资源替换必须携带当前 `file_hash` 基线，页面源码中的资源 `name` 不变。
 - Preview Artifact 是临时交付证据，不是项目或页面的持久化发布版本；用户要求预览或交付链接时才创建，截图仍单独作为视觉验证证据。
 
 ## 读取基线

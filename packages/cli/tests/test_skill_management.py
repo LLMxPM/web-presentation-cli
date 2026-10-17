@@ -14,7 +14,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
 
 from wp.cli import main
-from wp.skills.catalog import BundledSkill, get_bundled_skill, hash_skill_directory
+from wp.skills.catalog import BundledSkill, get_bundled_skill, hash_skill_directory, version_satisfies
 from wp.skills.installer import (
     SkillInstallError,
     export_skill,
@@ -69,6 +69,14 @@ def test_plan_targets_rejects_invalid_scope(tmp_path: Path) -> None:
             scope="invalid",
             project_dir=tmp_path,
         )
+
+
+def test_bundled_skill_minimum_cli_covers_model3d_commands() -> None:
+    """Skill 已使用 0.3.2 才提供的三维资源命令，不能声明兼容更早版本。"""
+
+    skill = get_bundled_skill("web-presentation")
+    assert version_satisfies("0.3.1", skill.requires_cli) is False
+    assert version_satisfies("0.3.2", skill.requires_cli) is True
 
 
 def test_install_status_and_uninstall_lifecycle(tmp_path: Path) -> None:

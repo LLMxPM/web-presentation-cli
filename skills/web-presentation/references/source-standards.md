@@ -40,7 +40,11 @@
 
 ## 内容渲染
 
-图片、数学公式、数据图表和流程图优先交给对应 Runtime Kit 组件渲染，选择方式与示例见 [资源与设计系统](./design-system-and-assets.md)。共享资源使用查询得到的真实 `name`；支持直接内容的文本渲染组件可以使用 `content`，具体格式和属性以 `wp runtime-kit get <item>` 的返回为准。页面不自行初始化 ECharts、KaTeX 或 Mermaid，渲染器的生命周期由 Runtime 管理；页面源码仍负责构图和业务内容。
+图片、数学公式、数据图表、流程图和三维模型优先交给对应 Runtime Kit 组件渲染，选择方式与示例见 [资源与设计系统](./design-system-and-assets.md)。共享资源使用查询得到的真实 `name`；支持直接内容的文本渲染组件可以使用 `content`，具体格式和属性以 `wp runtime-kit get <item>` 的返回为准。三维模型使用 `AssetModel`，只引用自包含 GLB 的真实 `model3d` 资源名，不传 URL、本地路径、GLB 文本或 base64。页面不自行初始化 ECharts、KaTeX、Mermaid 或 Three.js，渲染器的生命周期由 Runtime 管理；页面源码仍负责构图和业务内容。
+
+- 使用 `AssetModel` 前读取 Runtime Kit 当前契约和资源的场景/相机摘要，按“查询模型 → 读取渲染契约 → 配置视角”执行；相机索引与显式 `cameraPosition`/`cameraTarget` 互斥，位置和目标必须成对且不重合。容器必须用完整静态 class 声明明确宽高。
+- 当前三维展示是静态姿态，资源含动画数据不代表支持动画播放。替换资源会更新当前与历史页面预览，独立构建保留当次资源快照；替换模型不需要修改页面源码中的资源名。
+- 资源 `name` 优先使用字符串字面量或同一 Vue 文件顶层的静态枚举。确需动态资源名时，候选名称必须来自当前工作空间 active 资源，并在项目 `build_extra_assets_json.asset_names` 中补齐所有可能引用；保存或预览成功不代表独立构建包含这些资源。`useAssetSrc(() => props.imageName)` 仍是 props 资源名的正确写法，但不免除该构建额外资源要求。
 
 ## 主题、字体与 Token
 
