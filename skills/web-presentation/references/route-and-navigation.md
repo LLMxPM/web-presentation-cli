@@ -23,18 +23,32 @@
 ```json
 {
   "transition": {"effect": "fade", "duration_ms": 400},
-  "advance": {"mode": "timer", "delay_ms": 5000},
+  "advance": {"mode": "timer", "delay_ms": 5000, "media_timeout_ms": 300000},
   "loop": true,
   "auto_start": true
 }
 ```
+
+`advance.mode` 只接受 `manual`、`timer`、`media_end`；`delay_ms` 必填，`media_timeout_ms` 范围为 1000–3600000（默认 300000）。使用 `media_end` 或提供 `media_timeout_ms` 前，CLI 会读取工作空间 capability 的 `slideshow`：服务端未声明 `media_end`、或 Schema 低于 2 时直接失败（`SLIDESHOW_MEDIA_CAPABILITY_MISSING`），不会把媒体模式降级成 timer，也不会发送旧服务不认识的字段。未知模式返回 `SLIDESHOW_ADVANCE_MODE_UNKNOWN`。
+
+```json
+{
+  "transition": {"effect": "fade", "duration_ms": 400},
+  "advance": {"mode": "media_end", "delay_ms": 5000, "media_timeout_ms": 120000},
+  "loop": false,
+  "auto_start": true
+}
+```
+
+`media_end` 表示等到本页非循环音视频全部结束再翻页；循环背景不参与等待，没有参与媒体时按 `delay_ms` 停留。保存成功只代表配置已写入，浏览器是否允许有声自动播放由 Runtime 与用户手势决定。
 
 路由覆盖使用 `wp project route update <project_id> --edit-file <file>`。该命令会先读取当前整树，按完整路由路径应用编辑，再整树写回；自动保留未编辑节点的原始 `transition`/`advance`，并过滤 `id`、`page_code`、`page_title`、`display_title`、`effective_slideshow` 等只读字段。路由路径顶层写 `cover`，分组子页写 `chapter-1/overview`。
 
 ```json
 [
   {"route": "cover", "order": 1, "hidden": false},
-  {"route": "chapter-1/overview", "transition": {"effect": "fade", "duration_ms": 400}, "advance": null}
+  {"route": "chapter-1/overview", "transition": {"effect": "fade", "duration_ms": 400}, "advance": null},
+  {"route": "video", "advance": {"mode": "media_end", "delay_ms": 5000, "media_timeout_ms": 120000}}
 ]
 ```
 

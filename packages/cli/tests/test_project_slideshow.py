@@ -242,3 +242,157 @@ def test_project_slideshow_route_help_is_registered() -> None:
     assert route_help.exit_code == 0, route_help.output
     assert "update" in slideshow_help.output
     assert "route" in route_help.output
+
+
+MEDIA_SLIDESHOW = {
+    "transition": {"effect": "fade", "duration_ms": 400},
+    "advance": {"mode": "media_end", "delay_ms": 5000, "media_timeout_ms": 120000},
+    "loop": False,
+    "auto_start": True,
+}
+
+MEDIA_CAPABILITIES = {
+    "slideshow": {
+        "schema_version": 2,
+        "advance_modes": ["manual", "timer", "media_end"],
+        "media_timeout_ms": {"min": 1000, "max": 3600000},
+    }
+}
+
+
+def test_project_slideshow_media_round_trip_checks_capabilities(tmp_path: Path) -> None:
+    """schema 2 能力可用时完整写回 media_end 与媒体时限。"""
+
+    fake_client = MagicMock()
+    fake_client.get.side_effect = [
+        {"id": 7, "workspace_id": 9},
+        MEDIA_CAPABILITIES,
+    ]
+    fake_client.patch.return_value = {"slideshow": MEDIA_SLIDESHOW}
+    slideshow_file = write_json(tmp_path, "slideshow.json", MEDIA_SLIDESHOW)
+
+    with patch("wp.commands.project.get_client", return_value=fake_client):
+        result = CliRunner().invoke(
+            main, ["--json", "project", "slideshow", "update", "7", "--slideshow-file", str(slideshow_file)]
+        )
+
+    assert result.exit_code == 0, result.output
+    fake_client.get.assert_any_call("/workspaces/9/capabilities")
+    fake_client.patch.assert_called_once_with("/projects/7", json_data={"slideshow": MEDIA_SLIDESHOW})
+
+
+def test_project_slideshow_rejects_media_end_before_old_capability(tmp_path: Path) -> None:
+    """M1 服务未声明 media_end 时不发送写请求。"""
+
+    fake_client = MagicMock()
+    fake_client.get.side_effect = [
+        {"id": 7, "workspace_id": 9},
+        {"slideshow": {"schema_version": 1, "advance_modes": ["manual", "timer"]}},
+    ]
+    slideshow_file = write_json(tmp_path, "slideshow.json", MEDIA_SLIDESHOW)
+
+    with patch("wp.commands.project.get_client", return_value=fake_client):
+        result = CliRunner().invoke(
+            main, ["--json", "project", "slideshow", "update", "7", "--slideshow-file", str(slideshow_file)]
+        )
+
+    assert result.exit_code != 0
+    assert "SLIDESHOW_MEDIA_CAPABILITY_MISSING" in result.output
+    fake_client.patch.assert_not_called()
+
+
+def test_project_slideshow_rejects_media_timeout_before_schema2(tmp_path: Path) -> None:
+    """schema 1 服务不接收 media_timeout_ms。"""
+
+    fake_client = MagicMock()
+    fake_client.get.side_effect = [
+        {"id": 7, "workspace_id": 9},
+        {"slideshow": {"schema_version": 1, "advance_modes": ["manual", "timer"]}},
+    ]
+    payload = {**SLIDESHOW, "advance": {"mode": "timer", "delay_ms": 5000, "media_timeout_ms": 120000}}
+    slideshow_file = write_json(tmp_path, "slideshow.json", payload)
+
+    with patch("wp.commands.project.get_client", return_value=fake_client):
+        result = CliRunner().invoke(
+            main, ["--json", "project", "slideshow", "update", "7", "--slideshow-file", str(slideshow_file)]
+        )
+
+    assert result.exit_code != 0
+    assert "SLIDESHOW_MEDIA_CAPABILITY_MISSING" in result.output
+    fake_client.patch.assert_not_called()
+
+
+def test_project_slideshow_rejects_unknown_advance_mode(tmp_path: Path) -> None:
+    """未知模式明确失败，不静默改成 timer。"""
+
+    fake_client = MagicMock()
+    slideshow_file = write_json(tmp_path, "slideshow.json", {
+        **SLIDESHOW,
+        "advance": {"mode": "video_done", "delay_ms": 5000},
+    })
+
+    with patch("wp.commands.project.get_client", return_value=fake_client):
+        result = CliRunner().invoke(
+            main, ["--json", "project", "slideshow", "update", "7", "--slideshow-file", str(slideshow_file)]
+        )
+
+    assert result.exit_code != 0
+    assert "SLIDESHOW_ADVANCE_MODE_UNKNOWN" in result.output
+    fake_client.get.assert_not_called()
+    fake_client.patch.assert_not_called()
+
+
+def test_project_route_update_preserves_media_advance_when_reordering(tmp_path: Path) -> None:
+    """只改排序时保留树中已有的 media_end 与媒体时限。"""
+
+    tree = json.loads(json.dumps(ROUTE_TREE))
+    tree["routes"][0]["advance"] = {"mode": "media_end", "delay_ms": 5000, "media_timeout_ms": 120000}
+    tree["routes"][0]["effective_slideshow"]["advance"] = tree["routes"][0]["advance"]
+    edit_file = write_json(tmp_path, "edits.json", [{"route": "cover", "order": 2}])
+    fake_client = MagicMock()
+    fake_client.get.return_value = tree
+    fake_client.put.return_value = {"routes": []}
+
+    with patch("wp.commands.project.get_client", return_value=fake_client):
+        result = CliRunner().invoke(main, ["--json", "project", "route", "update", "7", "--edit-file", str(edit_file)])
+
+    assert result.exit_code == 0, result.output
+    cover = fake_client.put.call_args.kwargs["json_data"]["routes"][0]
+    assert cover["order"] == 2
+    assert cover["advance"] == {"mode": "media_end", "delay_ms": 5000, "media_timeout_ms": 120000}
+    fake_client.get.assert_called_once_with("/projects/7/route-tree")
+
+
+def test_project_route_update_checks_capability_for_media_edit(tmp_path: Path) -> None:
+    """路由覆盖改成 media_end 前按工作空间能力校验。"""
+
+    fake_client = MagicMock()
+    fake_client.get.side_effect = [ROUTE_TREE, {"id": 7, "workspace_id": 9}, MEDIA_CAPABILITIES]
+    fake_client.put.return_value = {"routes": []}
+    edit_file = write_json(tmp_path, "edits.json", [{
+        "route": "cover",
+        "advance": {"mode": "media_end", "delay_ms": 5000, "media_timeout_ms": 120000},
+    }])
+
+    with patch("wp.commands.project.get_client", return_value=fake_client):
+        result = CliRunner().invoke(main, ["--json", "project", "route", "update", "7", "--edit-file", str(edit_file)])
+
+    assert result.exit_code == 0, result.output
+    fake_client.get.assert_any_call("/workspaces/9/capabilities")
+    cover = fake_client.put.call_args.kwargs["json_data"]["routes"][0]
+    assert cover["advance"] == {"mode": "media_end", "delay_ms": 5000, "media_timeout_ms": 120000}
+
+
+def test_project_route_update_rejects_unknown_advance_before_writing(tmp_path: Path) -> None:
+    """路由覆盖使用未知模式时整树不写回。"""
+
+    fake_client = MagicMock()
+    fake_client.get.return_value = ROUTE_TREE
+    edit_file = write_json(tmp_path, "edits.json", [{"route": "cover", "advance": {"mode": "auto", "delay_ms": 5000}}])
+
+    with patch("wp.commands.project.get_client", return_value=fake_client):
+        result = CliRunner().invoke(main, ["--json", "project", "route", "update", "7", "--edit-file", str(edit_file)])
+
+    assert result.exit_code != 0
+    assert "SLIDESHOW_ADVANCE_MODE_UNKNOWN" in result.output
+    fake_client.put.assert_not_called()
