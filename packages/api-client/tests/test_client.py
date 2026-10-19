@@ -257,3 +257,68 @@ def test_openapi_rejects_invalid_payload_without_leaking_credentials() -> None:
         client.get_openapi_schema()
     assert caught.value.code == "OPENAPI_INVALID"
     client.close()
+
+
+def _mock_transport_client(handler) -> ApiClient:
+    """构造使用 MockTransport 的客户端，便于验证流式下载与错误响应。"""
+
+    client = ApiClient("https://backend.test", token="pat_secret", workspace_id=9)
+    client.client.close()
+    client.client = httpx.Client(base_url=client.endpoint, transport=httpx.MockTransport(handler))
+    return client
+
+
+def test_download_file_streams_to_destination_and_returns_local_hash(tmp_path) -> None:
+    """流式下载应原子落盘、返回字节数与本地 SHA-256，且不留下临时文件。"""
+
+    import hashlib
+
+    payload = b"PK\x03\x04" + b"zip-bytes" * 1024
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["X-Workspace-ID"] == "9"
+        return httpx.Response(200, headers={"content-type": "application/zip"}, content=payload)
+
+    client = _mock_transport_client(handler)
+    destination = tmp_path / "nested" / "artifact.zip"
+    _headers, size, digest = client.download_file("/projects/1/build-jobs/2/artifact", destination)
+
+    assert destination.read_bytes() == payload
+    assert size == len(payload)
+    assert digest == hashlib.sha256(payload).hexdigest()
+    assert list(destination.parent.glob(".*.tmp.*")) == []
+    client.close()
+
+
+def test_download_file_error_response_does_not_create_destination(tmp_path) -> None:
+    """错误响应必须在落盘前中断，不能留下半个产物。"""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(404, json={"code": "BUILD_ARTIFACT_NOT_FOUND", "message": "不存在"})
+
+    client = _mock_transport_client(handler)
+    destination = tmp_path / "artifact.zip"
+    with pytest.raises(ApiClientError) as exc_info:
+        client.download_file("/projects/1/build-jobs/2/artifact", destination)
+
+    assert exc_info.value.code == "BUILD_ARTIFACT_NOT_FOUND"
+    assert not destination.exists()
+    client.close()
+
+
+def test_download_project_build_artifact_rejects_non_zip_without_overwriting(tmp_path) -> None:
+    """Content-Type 非 ZIP 时拒绝落盘，并保留已有目标文件。"""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, headers={"content-type": "text/html"}, content=b"<html>gateway</html>")
+
+    client = _mock_transport_client(handler)
+    destination = tmp_path / "artifact.zip"
+    destination.write_bytes(b"previous")
+    with pytest.raises(ApiClientError) as exc_info:
+        client.download_project_build_artifact(1, 2, destination)
+
+    assert exc_info.value.code == "INVALID_CONTENT_TYPE"
+    assert destination.read_bytes() == b"previous"
+    assert list(tmp_path.glob(".*.download.*")) == []
+    client.close()

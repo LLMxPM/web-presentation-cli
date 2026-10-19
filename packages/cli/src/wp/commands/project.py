@@ -25,6 +25,7 @@ from wp.commands.project_audio import (
     gate_audio_settings_in_payload,
     project_audio_group,
 )
+from wp.commands.project_build import project_build_group
 
 # 路由编辑允许的设置字段；route 只用于定位，不能改名或移动节点。
 ROUTE_EDIT_KEYS = frozenset({"route", "order", "hidden", "group_title", "transition", "advance"})
@@ -234,6 +235,7 @@ def project_group() -> None:
 
 
 project_group.add_command(project_audio_group)
+project_group.add_command(project_build_group)
 
 
 @openapi_command(project_group, "list", contract("GET", "/api/v1/projects"))

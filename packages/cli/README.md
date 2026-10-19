@@ -80,6 +80,15 @@ wp preview get --page-id <page_id>
 
 项目和页面目标共用同一个预览命令与 API Client 方法；页面模块入口由 Backend 解析。Windows Git Bash 会在 Python 启动前把 `/overview` 改写为本地路径，因此默认示例不带前导斜杠；API JSON 中的 `/overview` 仍然合法。单纯加引号不能关闭该转换。
 
+下载已知构建任务产物或历史截图内容：
+
+```bash
+wp project build artifact <project_id> <build_job_id> --output .tmp/web-presentation/build.zip
+wp page screenshot <page_id> --screenshot-id <content_hash> --output .tmp/web-presentation/history.png
+```
+
+构建产物命令只下载、不发起或查询构建任务；`local_sha256` 是本地落盘校验值。截图内容下载不刷新最新截图，内容不存在时返回 404，不回退最新图。
+
 JSON 输出模式：
 
 ```bash

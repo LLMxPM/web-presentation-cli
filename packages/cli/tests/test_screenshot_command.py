@@ -144,3 +144,68 @@ def test_client_get_latest_page_screenshot_strict_validations() -> None:
             client.get_latest_page_screenshot(1)
         assert exc_info.value.code == "INVALID_HEADER"
         assert "X-Page-Version-No" in exc_info.value.message
+
+
+def test_screenshot_by_content_id_does_not_refresh_latest(tmp_path: Path) -> None:
+    """指定内容 ID 时只下载该产物，不用当前页面版本命名或回退最新图。"""
+
+    output_file = tmp_path / "history.png"
+    mock_client = MagicMock()
+    mock_client.get_page_screenshot_content.return_value = (
+        {"etag": '"content-hash-1"', "content-type": "image/png"},
+        b"HISTORY_PNG",
+    )
+
+    with patch("wp.commands.screenshot.ApiClient", return_value=mock_client):
+        result = CliRunner().invoke(
+            main,
+            [
+                "--json",
+                "page",
+                "screenshot",
+                "42",
+                "--screenshot-id",
+                "abcdef1234567890",
+                "--output",
+                str(output_file),
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    assert output_file.read_bytes() == b"HISTORY_PNG"
+    mock_client.get_latest_page_screenshot.assert_not_called()
+    payload = json.loads(result.output)
+    assert payload["screenshot_id"] == "abcdef1234567890"
+    assert payload["content_hash"] == "content-hash-1"
+    assert payload["version_no"] is None
+
+
+def test_screenshot_content_404_does_not_fall_back_to_latest(tmp_path: Path) -> None:
+    """旧内容不存在时保留 404，不下载最新截图冒充历史内容。"""
+
+    output_file = tmp_path / "missing.png"
+    mock_client = MagicMock()
+    mock_client.get_page_screenshot_content.side_effect = ApiClientError(
+        "页面截图不存在。",
+        status_code=404,
+        code="PAGE_SCREENSHOT_NOT_FOUND",
+    )
+
+    with patch("wp.commands.screenshot.ApiClient", return_value=mock_client):
+        result = CliRunner().invoke(
+            main,
+            [
+                "page",
+                "screenshot",
+                "42",
+                "--screenshot-id",
+                "deadbeef",
+                "--output",
+                str(output_file),
+            ],
+        )
+
+    assert result.exit_code != 0
+    assert "PAGE_SCREENSHOT_NOT_FOUND" in result.output
+    mock_client.get_latest_page_screenshot.assert_not_called()
+    assert not output_file.exists()

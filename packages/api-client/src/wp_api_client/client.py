@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import os
+from pathlib import Path
 import time
 import uuid
 from typing import Any, Literal, Mapping
@@ -392,23 +395,64 @@ class ApiClient:
     ) -> tuple[httpx.Headers, bytes]:
         """获取原始响应 Headers 与二进制 Byte 内容（带有跨域 PAT 泄露防护）。"""
 
+        url = self._resolve_resource_url(path_or_url)
+        headers = self._get_headers(override_workspace_id=workspace_id)
+        resp = self._request("GET", url, params=params, headers=headers)
+        if not resp.is_success:
+            self._handle_response(resp)
+        return resp.headers, resp.content
+
+    def _resolve_resource_url(self, path_or_url: str) -> str:
+        """把相对路径或同源绝对 URL 解析为请求地址，拒绝非同源 PAT 传输。"""
+
         if path_or_url.startswith("http://") or path_or_url.startswith("https://"):
             if not self._is_same_origin(path_or_url):
                 raise ApiClientError(
                     "安全拦截：禁止向非 Endpoint 同源地址发送 PAT 令牌",
                     code="CROSS_ORIGIN_PAT_BLOCKED",
                 )
-            url = path_or_url
-        elif path_or_url.startswith("/api/v1"):
-            url = path_or_url
-        else:
-            url = f"/api/v1{path_or_url}" if path_or_url.startswith("/") else f"/api/v1/{path_or_url}"
+            return path_or_url
+        if path_or_url.startswith("/api/v1"):
+            return path_or_url
+        return f"/api/v1{path_or_url}" if path_or_url.startswith("/") else f"/api/v1/{path_or_url}"
 
+    def download_file(
+        self,
+        path_or_url: str,
+        destination: Path,
+        params: Mapping[str, Any] | None = None,
+        workspace_id: int | None = None,
+    ) -> tuple[httpx.Headers, int, str]:
+        """流式下载二进制到目标路径并原子替换，返回 Headers、字节数与本地 SHA-256。
+
+        错误响应不落盘；写入失败会清理临时文件，避免留下半个产物。
+        """
+
+        url = self._resolve_resource_url(path_or_url)
         headers = self._get_headers(override_workspace_id=workspace_id)
-        resp = self._request("GET", url, params=params, headers=headers)
-        if not resp.is_success:
-            self._handle_response(resp)
-        return resp.headers, resp.content
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = destination.with_name(f".{destination.name}.tmp.{uuid.uuid4().hex[:8]}")
+        digest = hashlib.sha256()
+        size = 0
+        try:
+            with self.client.stream("GET", url, params=params, headers=headers) as resp:
+                if not resp.is_success:
+                    resp.read()
+                    self._handle_response(resp)
+                with tmp_path.open("wb") as file_obj:
+                    for chunk in resp.iter_bytes():
+                        file_obj.write(chunk)
+                        digest.update(chunk)
+                        size += len(chunk)
+            os.replace(tmp_path, destination)
+        except BaseException:
+            if tmp_path.exists():
+                try:
+                    tmp_path.unlink()
+                except OSError:
+                    pass
+            raise
+        return headers, size, digest.hexdigest()
 
     def get_latest_page_screenshot(self, page_id: int) -> tuple[dict[str, Any], bytes]:
         """请求 External API v1 获取最新 PNG 截图 (一次性 GET 请求)。"""
@@ -441,6 +485,51 @@ class ApiClient:
             "version_no": version_no,
         }
         return meta, img_bytes
+
+    def get_page_screenshot_content(self, page_id: int, screenshot_id: str) -> tuple[httpx.Headers, bytes]:
+        """按内容 ID 读取页面截图产物；不校验页面版本头，不回退最新截图。"""
+
+        resp_headers, img_bytes = self.get_bytes(
+            f"/pages/{page_id}/screenshots/{screenshot_id}/content"
+        )
+        content_type = str(resp_headers.get("content-type") or "").split(";", 1)[0].strip().lower()
+        if "image/png" not in content_type:
+            raise ApiClientError(
+                f"服务端响应 Content-Type 异常 ('{content_type}')，预期为 image/png",
+                code="INVALID_CONTENT_TYPE",
+            )
+        return resp_headers, img_bytes
+
+    def download_project_build_artifact(
+        self,
+        project_id: int,
+        job_id: int,
+        destination: Path,
+    ) -> tuple[httpx.Headers, int, str]:
+        """流式下载构建任务 ZIP，校验响应类型后再原子替换目标文件。"""
+
+        staging_path = destination.with_name(
+            f".{destination.name}.download.{uuid.uuid4().hex[:8]}"
+        )
+        try:
+            headers, size, digest = self.download_file(
+                f"/projects/{project_id}/build-jobs/{job_id}/artifact",
+                staging_path,
+            )
+            content_type = str(headers.get("content-type") or "").split(";", 1)[0].strip().lower()
+            if content_type not in {"application/zip", "application/octet-stream"}:
+                raise ApiClientError(
+                    f"服务端响应 Content-Type 异常 ('{content_type}')，预期为 application/zip",
+                    code="INVALID_CONTENT_TYPE",
+                )
+            os.replace(staging_path, destination)
+            return headers, size, digest
+        finally:
+            if staging_path.exists():
+                try:
+                    staging_path.unlink()
+                except OSError:
+                    pass
 
     def close(self) -> None:
         """关闭底层 HTTP 连接池。"""

@@ -29,34 +29,48 @@ wp --json job wait <job_id> --timeout 120
 
 人工重试前确认平台明确允许 retry。网络超时或暂时性 5xx 只对安全请求有限重试；版本冲突、权限错误、参数错误、资源缺失先重新读事实并修正。重试不同业务请求不得复用幂等键。
 
+`RENDER_SERVICE_UNAVAILABLE` 表示页面视觉诊断执行不可用，不能把失败当成“代码已通过”。不要在外部 Agent 中伪造校验结果或绕过平台写入校验；先确认 Renderer 与 Backend 的运行态，恢复后重试，仍不可用则把视觉校验列为未完成项。
+
 ## 视觉复核
 
 用户要求查看可交互效果或交付链接时，获取短期预览地址：
 
 ```bash
 wp --json preview get --project-id <project_id>
-wp --json preview get --project-id <project_id> --route /overview
+wp --json preview get --project-id <project_id> --route overview
 wp --json preview get --page-id <page_id>
 ```
 
-`preview_url` 只用于当前 Preview Artifact 的短期访问，不代表正式发布；项目入口可通过 `--route` 指定，页面入口由 Backend 解析。预览地址用于交互检查，截图用于固定画布的视觉证据，两者不能互相替代。
+`preview_url` 只用于当前 Preview Artifact 的短期访问，不代表正式发布；项目入口可通过 `--route` 指定，页面入口由 Backend 解析。Windows Git Bash 会把 `/overview` 当作文件路径转换；优先使用不带前导斜杠的 `--route overview`，确需前导斜杠时使用 `MSYS_NO_PATHCONV=1`。预览地址用于交互检查，截图用于固定画布的视觉证据，两者不能互相替代。
 
 成功后获取最新截图：
 
 ```bash
 wp page screenshot <page_id> --output .tmp/web-presentation/shot/page-<page_id>.png
+wp --json page screenshot <page_id> --screenshot-id <content_hash> --output .tmp/web-presentation/shot/history.png
 ```
+
+`--screenshot-id` 只按页面范围内的内容 ID 下载已有截图，不刷新页面、不触发 `preview:run`；内容不存在时保留 404，不回退最新截图。历史内容接口不返回页面版本，输出中的 `version_no` 为 `null`，文件名也不要使用当前页面版本。
+
+构建产物下载只适用于已知 `build_job_id` 的任务：
+
+```bash
+wp --json project build artifact <project_id> <build_job_id> --output .tmp/web-presentation/build.zip
+```
+
+CLI 不能发起或查询构建任务；输出中的 `local_sha256` 只用于校验落盘内容，不是服务端可信摘要。
 
 检查：
 
 - 固定画布是否完整，底部或侧边是否裁切；
 - 标题、正文、数字、表格是否可读，长文案是否换行失控；
 - 视觉焦点、阅读顺序、主体区域垂直平衡和留白是否有意；
-- 主题颜色、字体、Logo、Icon、图片、图表和三维模型是否真实加载；
+- 主题颜色、字体、Logo、Icon、图片、音频、图表和三维模型是否真实加载；
 - 三维模型的材质、光照、场景和相机视角是否符合预期，模型是否被容器裁切或过小；
+- 音频播放器是否有明确、可读的容器和控件，是否被裁切或与其它内容重叠；
 - 空态、缺图、数据不足、错误提示和默认组件态是否仍然成立。
 
-三维模型的动画数据不代表支持动画播放，截图只验证当前静态姿态。替换三维资源文件后，当前与历史页面预览会同步更新，独立构建保留当次资源快照；应重新截图而不是沿用替换前的视觉结论。
+三维模型的动画数据不代表支持动画播放，截图只验证当前静态姿态。替换三维资源文件后，当前与历史页面预览会同步更新，独立构建保留当次资源快照；应重新截图而不是沿用替换前的视觉结论。音频同理，截图不能证明声音已播放、旁白已自动启动或 cue 已发声；这些行为必须在用户手动操作的预览或放映中验证，并且遵守 `slideshow.audio` 能力开关。音频替换后重新截图确认播放器与布局，不要声称已完成听觉验收。
 
 截图发现问题时优先对当前版本做最小结构化编辑；重新读取版本基线后再提交，不要以旧源码生成新 edits。
 

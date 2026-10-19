@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).parents[1] / "src"))
 from click.testing import CliRunner
 
 from wp.cli import main
+from wp.client import ApiClientError
 
 
 def test_new_command_groups_are_registered() -> None:
@@ -289,3 +290,57 @@ def test_asset_list_and_tags_accept_audio_type() -> None:
         params={"page": 1, "page_size": 50, "asset_type": "audio"},
     )
     fake_client.get.assert_any_call("/assets/tags", params={"asset_type": "audio"})
+
+
+def test_project_build_artifact_downloads_known_job(tmp_path: Path) -> None:
+    """构建产物命令只下载已知任务，并输出本地 hash 与落盘信息。"""
+
+    save_path = tmp_path / "builds" / "project-7-build-42.zip"
+    fake_client = MagicMock()
+
+    def fake_download(project_id: int, job_id: int, destination: Path) -> tuple[dict, int, str]:
+        """模拟客户端流式落盘。"""
+
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        payload = b"PK\x03\x04artifact"
+        destination.write_bytes(payload)
+        return {}, len(payload), "local-sha256"
+
+    fake_client.download_project_build_artifact.side_effect = fake_download
+
+    with patch("wp.commands.project_build.get_client", return_value=fake_client):
+        result = CliRunner().invoke(
+            main,
+            ["--json", "project", "build", "artifact", "7", "42", "--output", str(save_path)],
+        )
+
+    assert result.exit_code == 0, result.output
+    fake_client.download_project_build_artifact.assert_called_once()
+    assert save_path.read_bytes() == b"PK\x03\x04artifact"
+    payload = json.loads(result.output)
+    assert payload["project_id"] == 7
+    assert payload["build_job_id"] == 42
+    assert payload["local_sha256"] == "local-sha256"
+    assert payload["saved_file"] == str(save_path.resolve())
+
+
+def test_project_build_artifact_failure_leaves_no_file(tmp_path: Path) -> None:
+    """下载失败必须非零退出，不创建占位文件。"""
+
+    save_path = tmp_path / "artifact.zip"
+    fake_client = MagicMock()
+    fake_client.download_project_build_artifact.side_effect = ApiClientError(
+        "当前构建任务尚未生成可下载产物。",
+        status_code=404,
+        code="BUILD_ARTIFACT_NOT_FOUND",
+    )
+
+    with patch("wp.commands.project_build.get_client", return_value=fake_client):
+        result = CliRunner().invoke(
+            main,
+            ["--json", "project", "build", "artifact", "7", "42", "--output", str(save_path)],
+        )
+
+    assert result.exit_code != 0
+    assert "BUILD_ARTIFACT_NOT_FOUND" in result.output
+    assert not save_path.exists()
