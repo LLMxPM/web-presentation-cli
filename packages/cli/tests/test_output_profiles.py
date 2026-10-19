@@ -218,3 +218,34 @@ def test_component_projection_includes_import_usage() -> None:
     )
     assert component_detail["import_path"] == "@workspace-components/CMP001/v/1"
     assert component_detail["import_statement"] == "import MyCard from '@workspace-components/CMP001/v/1'"
+
+
+def test_project_detail_keeps_audio_settings_and_slideshow_only_when_present() -> None:
+    """项目详情应保留服务端音频与放映字段；旧响应缺字段时不补 null。"""
+
+    audio_settings = {
+        "master_volume_percent": 80,
+        "narration_volume_percent": 100,
+        "effects_volume_percent": 60,
+        "cue_bindings": [
+            {
+                "key": "transition.forward",
+                "asset_id": 505,
+                "asset_name": "transition-forward",
+                "asset_type": "audio",
+                "asset_status": "active",
+                "gain_percent": 90,
+            }
+        ],
+    }
+    slideshow = {"transition": {"effect": "fade", "duration_ms": 400}, "advance": {"mode": "manual", "delay_ms": 0}}
+    detailed = project_response(
+        {"id": 130, "name": "音频项目", "slideshow": slideshow, "audio_settings": audio_settings},
+        "project_detail",
+    )
+    legacy = project_response({"id": 129, "name": "旧服务项目"}, "project_detail")
+
+    assert detailed["slideshow"] == slideshow
+    assert detailed["audio_settings"]["cue_bindings"][0]["asset_name"] == "transition-forward"
+    assert "slideshow" not in legacy
+    assert "audio_settings" not in legacy

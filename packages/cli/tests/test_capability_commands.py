@@ -229,3 +229,63 @@ def test_archive_ids_file_rejects_non_integer_ids(tmp_path: Path) -> None:
 
     assert result.exit_code != 0
     assert "正整数" in result.output
+
+
+def test_asset_upload_audio_sends_audio_type_and_content_type(tmp_path: Path) -> None:
+    """音频上传必须使用 audio 类型并显式声明受支持的 Content-Type。"""
+
+    audio_file = tmp_path / "transition-forward.mp3"
+    audio_file.write_bytes(b"ID3\x04\x00\x00\x00\x00\x00\x00")
+    fake_client = MagicMock()
+    fake_client.upload.return_value = {"id": 505, "name": "transition-forward", "asset_type": "audio"}
+
+    with patch("wp.commands.asset.get_client", return_value=fake_client):
+        result = CliRunner().invoke(
+            main,
+            [
+                "--json",
+                "asset",
+                "upload",
+                str(audio_file),
+                "--type",
+                "audio",
+                "--name",
+                "transition-forward",
+                "--idempotency-key",
+                "asset-transition-forward",
+            ],
+        )
+
+    assert result.exit_code == 0, result.output
+    call = fake_client.upload.call_args
+    assert call.args[0] == "/assets"
+    assert call.kwargs["data"] == {
+        "asset_type": "audio",
+        "name": "transition-forward",
+        "description": None,
+    }
+    name, _file_obj, content_type = call.kwargs["files"]["file"]
+    assert name == "transition-forward.mp3"
+    assert content_type == "audio/mpeg"
+
+
+def test_asset_list_and_tags_accept_audio_type() -> None:
+    """audio 类型必须同时覆盖资源列表过滤与标签查询，而不只是上传。"""
+
+    fake_client = MagicMock()
+    fake_client.get.side_effect = [
+        {"items": [], "page": 1, "page_size": 50, "total": 0},
+        {"items": []},
+    ]
+
+    with patch("wp.commands.asset.get_client", return_value=fake_client):
+        list_result = CliRunner().invoke(main, ["--json", "asset", "list", "--type", "audio"])
+        tags_result = CliRunner().invoke(main, ["--json", "asset", "tags", "list", "--type", "audio"])
+
+    assert list_result.exit_code == 0, list_result.output
+    assert tags_result.exit_code == 0, tags_result.output
+    fake_client.get.assert_any_call(
+        "/assets",
+        params={"page": 1, "page_size": 50, "asset_type": "audio"},
+    )
+    fake_client.get.assert_any_call("/assets/tags", params={"asset_type": "audio"})

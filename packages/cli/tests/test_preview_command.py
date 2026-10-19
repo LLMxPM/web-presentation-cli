@@ -83,3 +83,13 @@ def test_preview_requires_stable_response_fields() -> None:
 
     assert result.exit_code != 0
     assert "artifact_id" in result.output
+
+
+def test_preview_help_defaults_to_route_without_leading_slash() -> None:
+    """帮助默认示例必须跨 Shell 可用，前导斜杠只作为 Git Bash 例外说明。"""
+
+    result = CliRunner().invoke(main, ["preview", "get", "--help"])
+
+    assert result.exit_code == 0, result.output
+    assert "wp preview get --project-id 7 --route overview" in result.output
+    assert "MSYS_NO_PATHCONV=1" in result.output

@@ -32,6 +32,9 @@ PROJECT_DETAIL_FIELDS = PROJECT_LIST_FIELDS + (
     "theme_key",
     "style_spec_markdown",
     "build_extra_assets_json",
+    # 服务端实际返回时才保留；旧服务缺字段仍保持缺失，不补 null 或默认值。
+    "slideshow",
+    "audio_settings",
 )
 
 PAGE_LIST_FIELDS = (

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import BinaryIO
 import uuid
 
 import click
@@ -24,7 +25,30 @@ from wp.formatter import print_error, print_success, print_table
 from wp.openapi_help import contract, openapi_command
 
 
-ASSET_TYPES = ["image", "icon", "font", "video", "drawio", "mermaid", "chart", "formula", "model3d"]
+ASSET_TYPES = ["image", "icon", "font", "video", "audio", "drawio", "mermaid", "chart", "formula", "model3d"]
+
+# 音频由服务端同时校验扩展名与 Content-Type；显式声明避免客户端 MIME 猜测差异。
+AUDIO_CONTENT_TYPES_BY_EXTENSION = {
+    ".mp3": "audio/mpeg",
+    ".m4a": "audio/mp4",
+    ".aac": "audio/aac",
+    ".ogg": "audio/ogg",
+    ".wav": "audio/wav",
+}
+
+
+def _file_part(
+    path: Path,
+    file_obj: BinaryIO,
+    *,
+    asset_type: str | None = None,
+) -> tuple[str, BinaryIO] | tuple[str, BinaryIO, str]:
+    """构造 multipart 文件片段；音频按扩展名补齐受支持的 Content-Type。"""
+
+    content_type = AUDIO_CONTENT_TYPES_BY_EXTENSION.get(path.suffix.lower())
+    if content_type is None or (asset_type is not None and asset_type != "audio"):
+        return path.name, file_obj
+    return path.name, file_obj, content_type
 
 
 def _write_bytes_atomic(save_path: Path, content: bytes) -> None:
@@ -150,23 +174,24 @@ def download_asset_cmd(ctx: click.Context, asset_id: int, output: str | None, fi
     contract("POST", "/api/v1/assets"),
     examples=(
         "wp asset upload .tmp/web-presentation/hero-image.png --type image --name hero-image --idempotency-key asset-hero-image",
+        "wp asset upload .tmp/web-presentation/transition-forward.mp3 --type audio --name transition-forward --idempotency-key asset-transition-forward",
     ),
 )
 @click.argument("file_path", type=click.Path(exists=True, dir_okay=False))
-@click.option("--type", "asset_type", type=click.Choice(ASSET_TYPES), required=True, help="上传资源类型")
+@click.option("--type", "asset_type", type=click.Choice(ASSET_TYPES), required=True, help="上传资源类型；音频使用 audio")
 @click.option("--name", help="平台逻辑名；默认使用文件名主干")
 @click.option("--description", help="资源内容、来源和使用场景说明")
 @idempotency_key_option
 @click.pass_context
 def upload_asset_cmd(ctx: click.Context, file_path: str, asset_type: str, name: str | None, description: str | None) -> None:
-    """上传二进制、图片或三维模型资源。"""
+    """上传二进制、图片、音频或三维模型资源。"""
 
     path = Path(file_path)
     try:
         with path.open("rb") as file_obj:
             result = get_client(ctx).upload(
                 "/assets",
-                files={"file": (path.name, file_obj)},
+                files={"file": _file_part(path, file_obj, asset_type=asset_type)},
                 data={"asset_type": asset_type, "name": name or path.stem, "description": description},
             )
         output_result(ctx, result)
@@ -195,7 +220,7 @@ def replace_asset_cmd(ctx: click.Context, asset_id: int, file_path: str, expecte
         with path.open("rb") as file_obj:
             result = get_client(ctx).upload(
                 f"/assets/{asset_id}/replace",
-                files={"file": (path.name, file_obj)},
+                files={"file": _file_part(path, file_obj)},
                 data={"expected_file_hash": expected_file_hash.strip()},
             )
         output_result(ctx, result, profile="asset_detail")

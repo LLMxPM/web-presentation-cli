@@ -30,13 +30,17 @@ def preview_group() -> None:
     contract("POST", "/api/v1/pages/{page_id}/preview-artifact", "使用 --page-id 时"),
     examples=(
         "wp preview get --project-id 7",
-        "wp preview get --project-id 7 --route /overview",
+        "wp preview get --project-id 7 --route overview",
+        "MSYS_NO_PATHCONV=1 wp preview get --project-id 7 --route /overview",
         "wp preview get --page-id 21",
     ),
 )
 @click.option("--project-id", type=int, help="创建整项目预览的项目 ID")
 @click.option("--page-id", type=int, help="创建单页面预览的页面 ID")
-@click.option("--route", help="项目预览的入口路由，例如 /overview")
+@click.option(
+    "--route",
+    help="项目预览的入口路由，例如 overview（不带前导斜杠）；Git Bash 需要保留前导斜杠时使用 MSYS_NO_PATHCONV=1",
+)
 @click.pass_context
 def get_preview_cmd(
     ctx: click.Context,

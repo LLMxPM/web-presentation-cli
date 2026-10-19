@@ -73,11 +73,12 @@ wp skill export web-presentation
 
 ```bash
 wp preview get --project-id <project_id>
-wp preview get --project-id <project_id> --route /overview
+wp preview get --project-id <project_id> --route overview
+MSYS_NO_PATHCONV=1 wp preview get --project-id <project_id> --route /overview
 wp preview get --page-id <page_id>
 ```
 
-项目和页面目标共用同一个预览命令与 API Client 方法；页面模块入口由 Backend 解析。
+项目和页面目标共用同一个预览命令与 API Client 方法；页面模块入口由 Backend 解析。Windows Git Bash 会在 Python 启动前把 `/overview` 改写为本地路径，因此默认示例不带前导斜杠；API JSON 中的 `/overview` 仍然合法。单纯加引号不能关闭该转换。
 
 JSON 输出模式：
 
@@ -92,7 +93,7 @@ wp --raw project list
 
 Skill 与 CLI 一起发布，但使用独立版本。`wp skill status` 会识别缺失、过期、较新、不兼容、用户修改和未受管理等状态；普通升级不会覆盖用户修改，`--force` 会先保留同级备份。CLI 升级不会隐式改写已安装 Skill，需要重新运行 `wp skill install` 完成同步。若此前版本曾向 `.claude/skills`、`.mimocode/skills`、`~/.config/mimocode/skills` 或 `.workbuddy/skills` 安装过副本，升级后请手动移除这些旧目录，统一使用 `.agents/skills`。
 
-当前版本关系：CLI `0.3.2` 内置 `web-presentation` Skill `1.3.4`，Skill 声明的 CLI 兼容范围为 `>=0.3.2,<0.4.0`。之所以提高下限，是因为 Skill 已使用 `asset upload --type model3d`、`asset replace` 和 `asset download`，这些能力从 CLI `0.3.2` 才提供。构建时会把这组关系与规范化内容 SHA-256 写入 manifest。Skill `1.3.4` 补充三维模型（自包含 GLB）的资源发现、`AssetModel` 引用、相机配置、静态姿态边界和视觉复核；CLI 同步新增 `model3d` 类型、按基线替换与原始文件下载。
+当前源码版本关系：CLI `0.3.2` 内置 `web-presentation` Skill `1.4.0`，Skill 声明的 CLI 兼容范围为 `>=0.3.2,<0.4.0`。已发布的 CLI 0.3.2 安装包仍携带旧 Skill，升级后需要重新运行 `wp skill install` 同步。之所以提高下限，是因为 Skill 已使用 `asset upload --type model3d`、`asset replace` 和 `asset download`，这些能力从 CLI `0.3.2` 才提供。构建时会把这组关系与规范化内容 SHA-256 写入 manifest。Skill `1.3.4` 补充三维模型（自包含 GLB）的资源发现、`AssetModel` 引用、相机配置、静态姿态边界和视觉复核；CLI 同步新增 `model3d` 类型、按基线替换与原始文件下载。Skill `1.4.0` 补充音频资源、项目音频设置与旁白/音效能力门禁；CLI 当前源码已支持 `asset upload --type audio`，音频类型同时覆盖 `asset list --type audio` 与 `asset tags list --type audio`，已发布安装包需要升级后才能使用。
 
 `wp skill export` 生成的标准 ZIP 可用于支持本地上传的产品；CLI 不从 URL 或第三方仓库下载 Skill。
 
