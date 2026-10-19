@@ -42,6 +42,8 @@
 
 `media_end` 表示等到本页非循环音视频全部结束再翻页；循环背景不参与等待，没有参与媒体时按 `delay_ms` 停留。保存成功只代表配置已写入，浏览器是否允许有声自动播放由 Runtime 与用户手势决定。
 
+音频能力与放映配置相互独立：`capabilities.slideshow.audio` 决定旁白和 cue 是否开放；`page_narration=false` 时不要生成旁白，`audio_cues=false` 时 cue 绑定不会发声。旁白开放后，旁白页优先使用 `media_end`，让整页过渡和 render-ready 完成后再开始；`timer` 可能在旁白结束前翻页，`manual` 不因旁白结束翻页。cue 属于项目级音频设置，切页音效由真实页面切换触发，不要为了音效伪造路由变化；会话静音不写回项目配置。
+
 路由覆盖使用 `wp project route update <project_id> --edit-file <file>`。该命令会先读取当前整树，按完整路由路径应用编辑，再整树写回；自动保留未编辑节点的原始 `transition`/`advance`，并过滤 `id`、`page_code`、`page_title`、`display_title`、`effective_slideshow` 等只读字段。路由路径顶层写 `cover`，分组子页写 `chapter-1/overview`。
 
 ```json
@@ -54,6 +56,6 @@
 
 `transition` 和 `advance` 是整组覆盖：提供对象表示完整覆盖，显式 `null` 表示恢复继承项目默认值；省略字段表示本次不修改。分组节点只接受 `order`、`hidden`、`group_title`。`wp project route replace` 仍是原始整树替换入口，需要自行按当前写入 Schema 构造载荷，遗漏节点会被移除。
 
-配置写入只代表平台保存了放映设置，不代表已控制任何浏览器窗口的播放状态；自动开始、暂停和单窗口放映由 Runtime 在具备相应能力的版本中执行。不要用 CLI 冒充“已经播放”或跨设备远控。
+配置写入只代表平台保存了放映设置，不代表已控制任何浏览器窗口的播放状态；`auto_start` 只决定进入全屏放映时的初始自动/手动模式，运行中可在放映控制条切换，暂停和单窗口放映由 Runtime 在具备相应能力的版本中执行。不要用 CLI 冒充“已经播放”或跨设备远控。
 
 替换后重新读取路由及页面列表，核对页数、顺序、可见性、真实页面 ID 和挂载状态，再截图复核目录、页码和导航。失败时报告错误与未完成项，不重复创建已经成功的页面。

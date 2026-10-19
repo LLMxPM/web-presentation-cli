@@ -7,11 +7,11 @@ Web Presentation 的核心边界是“当前工作空间”。所有资源归属
 | 对象 | 作用 | 关键事实 | 常用 CLI 视图 |
 | --- | --- | --- | --- |
 | 工作空间 | 权限、数据隔离、共享资产边界 | PAT 必须有空间授权；Header/全局选项只是上下文 | `workspace list/use/capabilities` |
-| 项目 | 一次演示、报告或内容集合 | 拥有页面；保存自己的画布、基础字号、主题、样式规范和建议组件快照 | `project get`、`project configuration get` |
+| 项目 | 一次演示、报告或内容集合 | 拥有页面；保存自己的画布、基础字号、主题、样式规范、建议组件、放映 `slideshow` 和音频 `audio_settings` 快照 | `project get`、`project configuration get`、`project slideshow get` |
 | 路由树 | 页面顺序、分组、路径和可见性 | 修改路由不修改页面源码；替换是全量树操作 | `project route get/replace` |
 | 页面 | 项目内实际内容页 | 保存 Vue SFC、标题/摘要/备注、当前版本和截图信息 | `page get/source/version/dependencies` |
 | 工作空间组件 | 跨页面复用的 Vue 代码资产 | 草稿和发布版本分开；页面应引用已发布版本 | `component get/edit/publish/version/dependencies` |
-| 资源 | 图片、视频、三维模型、图标、SVG、Draw.io、Mermaid、Chart、Formula 和字体等 | 通过稳定 `name` 引用；`render_type` 决定 Runtime 渲染方式；三维资源带格式、场景、相机和动画摘要 | `asset list/get/content/download` |
+| 资源 | 图片、视频、音频、三维模型、图标、SVG、Draw.io、Mermaid、Chart、Formula 和字体等 | 通过稳定 `name` 引用；`render_type` 决定 Runtime 渲染方式；三维资源带格式、场景、相机和动画摘要；音频不可文本编辑 | `asset list/get/content/download/replace` |
 | 主题 | 共享视觉语义和色板 | key 创建后不可改；外部主题维护只涉及公开名称、说明和色板字段 | `theme list/get/create/update/copy` |
 | 样式 | 可复用的项目展示配置模板 | 应用到项目时复制成独立快照，后续不实时继承 | `style list/get/create/update/copy` |
 | 字体 | 注册的字体族/字体文件声明 | 只读查询；先有资源，再由平台注册/下发 | `font list` |
@@ -22,7 +22,9 @@ Web Presentation 的核心边界是“当前工作空间”。所有资源归属
 ## 归属、引用和快照不要混淆
 
 - 项目 configuration 是项目自己的展示快照；style 只是可复用模板，应用 style 后不会持续同步。
-- 项目 slideshow 保存默认整页动画、翻页方式、循环与自动开始；路由节点可整组覆盖 `transition`/`advance`，`null` 表示继承。保存设置不代表已控制浏览器播放。
+- 项目 slideshow 保存默认整页动画、翻页方式、循环与进入放映后的初始自动推进（`auto_start`）；路由节点可整组覆盖 `transition`/`advance`，`null` 表示继承。保存设置不代表已控制浏览器播放。
+- 项目 audio_settings 保存主音量、旁白音量、音效音量与 cue 绑定；读取以项目配置返回的 `asset_name/asset_status` 为准，写入只接受当前工作空间 active `audio` 资源的 `asset_id`。省略设置表示保留，显式空 `cue_bindings` 表示清空，显式 `null` 被拒绝。
+- 工作空间 capabilities 的 `slideshow.audio` 决定音频资产、页面旁白和项目 cue 是否真正可用。能力未开放时，即使源码或配置写入成功，也不得向用户宣称旁白自动播放或音效已发声。
 - 项目 route tree 是导航关系；页面 `project_id` 是归属关系；两者不是同一份数据。
 - `suggested_components` 和项目建议资源是推荐集合，不改变组件/资源的工作空间归属，也不限制当前空间内其它可见对象。
 - 页面/组件 `dependencies` 是当前版本源码真实依赖，不能用名称搜索结果替代。

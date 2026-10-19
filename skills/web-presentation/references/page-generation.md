@@ -9,7 +9,7 @@
 - 受众与使用场景；
 - 本页唯一主要结论；
 - 标题、眉题、正文、数字、引用、来源和演讲者备注；
-- 内容最适合用文字、表格、数据图表、数学公式、流程图、示意图、图片还是三维模型表达；
+- 内容最适合用文字、表格、数据图表、数学公式、流程图、示意图、图片、音频还是三维模型表达；
 - 画布方向、信息密度、品牌/主题、可复用组件和必须使用的素材；
 - 缺失资料的明确占位，以及空态、加载态、错误态、超长文本和缺图状态。
 
@@ -41,9 +41,11 @@ wp --json page source <page_id>
 wp --json page dependencies <page_id>
 ```
 
-项目 configuration 决定真实画布宽高、基础字号、主题 key、样式规范和建议组件。`base_font_size` 替代 Tailwind 默认 16px 基准，语义字号和间距按 `base_font_size / 16` 理解；直接写入的 px、rem 和 arbitrary value 不参与这个倍率。
+项目 configuration 决定真实画布宽高、基础字号、主题 key、样式规范和建议组件，也包含项目默认放映 `slideshow` 和音频 `audio_settings`。`base_font_size` 替代 Tailwind 默认 16px 基准，语义字号和间距按 `base_font_size / 16` 理解；直接写入的 px、rem 和 arbitrary value 不参与这个倍率。
 
-资源列表中的三维模型会带格式、场景数、相机数和动画数摘要；只筛三维模型时使用 `wp --json asset list --type model3d`，选定后再读取详情和 Runtime Kit 的 `AssetModel` 契约。
+工作空间 capabilities 的 `slideshow.audio` 声明 `audio_assets`、`page_narration` 和 `audio_cues`。用户要求旁白或交互音效时，先读取该能力；未开放的用途不得生成或承诺，只做内容音频或明确说明限制。
+
+资源列表中的三维模型会带格式、场景数、相机数和动画数摘要；只筛三维模型时使用 `wp --json asset list --type model3d`，选定后再读取详情和 Runtime Kit 的 `AssetModel` 契约。音频资源使用 `asset_type=audio`，选定后读取详情和 `AssetAudio.v1` 契约；如果当前 CLI 的 `--type` 不接受 `audio`，使用关键词查询并报告 CLI 需要升级，不要改用其他类型。
 
 ## 3. 先决定复用还是新建
 
@@ -65,7 +67,7 @@ wp --json page dependencies <page_id>
 
 ## 5. 编写页面 SFC
 
-构图中选定图片、公式、数据图表、流程图或三维模型后，先按 [资源与设计系统](./design-system-and-assets.md) 选择对应 Runtime Kit 渲染组件，并用 `wp runtime-kit get <item>` 读取真实路径、用法和参数。已有共享资源按 `name` 引用；一次性公式或图表可按契约直接传 `content`，需要跨页复用或独立维护时再创建资源。三维模型只引用真实 `model3d` 资源名，按“查询模型 → 读取渲染契约 → 配置视角”配置场景和相机，不向 `AssetModel` 传 URL、路径或 GLB 文本。
+构图中选定图片、音频、公式、数据图表、流程图或三维模型后，先按 [资源与设计系统](./design-system-and-assets.md) 选择对应 Runtime Kit 渲染组件，并用 `wp runtime-kit get <item>` 读取真实路径、用法和参数。已有共享资源按 `name` 引用；一次性公式或图表可按契约直接传 `content`，需要跨页复用或独立维护时再创建资源。三维模型只引用真实 `model3d` 资源名，按“查询模型 → 读取渲染契约 → 配置视角”配置场景和相机，不向 `AssetModel` 传 URL、路径或 GLB 文本。音频只引用真实 `audio` 资源名：内容音频使用 `purpose="content"` 并保留手动播放；旁白仅在 `page_narration=true` 时使用，禁止 loop，同一页最多一个旁白目标；交互音效使用 `useAudioCue.v1` 且仅在 `audio_cues=true` 时承诺。
 
 页面必须是完整、可运行的 Vue 3 SFC。默认根结构：
 
@@ -121,7 +123,7 @@ wp --json page source <page_id>
 wp page screenshot <page_id> --output .tmp/web-presentation/shot/page-<page_id>.png
 ```
 
-检查截图中的画布尺寸、底部裁切、文字换行、视觉重心、资源加载、空态/缺图和真实内容密度。页面含三维模型时，还要检查模型、材质、光照和视角是否真实呈现，而不是只确认资源名存在。发现问题时优先做局部 edits，不要无证据地重写整页。
+检查截图中的画布尺寸、底部裁切、文字换行、视觉重心、资源加载、空态/缺图和真实内容密度。页面含三维模型时，还要检查模型、材质、光照和视角是否真实呈现，而不是只确认资源名存在。页面含音频时，检查播放器控件、资源加载和布局占位；截图不能证明声音已播放或旁白已自动启动，真实声音需用户在预览或放映中手动验证。发现问题时优先做局部 edits，不要无证据地重写整页。
 
 ## 8. 多页演示的编排与交付
 
