@@ -12,6 +12,7 @@ from wp.client import ApiClient, ApiClientError
 from wp.config import get_profile, load_config
 from wp.formatter import print_error, print_json
 from wp.output_profiles import project_response
+from wp.commands.validation_recovery import with_validation_recovery
 
 
 def get_client(ctx: click.Context) -> ApiClient:
@@ -107,7 +108,7 @@ def output_result(ctx: click.Context, value: Any, *, profile: str | None = None,
 
     if profile and not ctx.obj.get("raw"):
         value = project_response(value, profile, detail=detail)
-    print_json(value)
+    print_json(with_validation_recovery(ctx, value))
 
 
 def handle_api_error(message: str, error: ApiClientError) -> NoReturn:
@@ -148,7 +149,7 @@ def require_success_job(job: dict[str, Any], *, ctx: click.Context | None = None
         error = raw_error if isinstance(raw_error, dict) else {"message": str(raw_error)}
         if ctx is not None:
             if ctx.obj.get("as_json"):
-                print_json(job)
+                print_json(with_validation_recovery(ctx, job))
             else:
                 print_error(
                     f"异步任务执行失败: {error.get('message') or '未提供错误信息。'}",
