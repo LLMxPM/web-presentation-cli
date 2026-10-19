@@ -14,6 +14,8 @@ wp --json component validate <component_id> --mode content --source-file .tmp/we
 
 `current` 检查当前内容，`content` 检查完整候选源码，`edits` 检查基于当前对象的结构化编辑；具体参数以命令帮助为准。校验不通过是诊断结果，不是写入成功。
 
+CLI 0.3.4 起省略 `--mode` 时，`--source-file` 自动选择 `content`，`--edits-file` 自动选择 `edits`，无文件才使用 `current`。两种文件不能同时提供；显式模式与文件不匹配、候选 edits 为空时直接报错，不发送校验请求。返回的 `mode` 应与实际输入一致，候选源码使用 `content`，不是 `candidate`。
+
 `--edits-file` 的完整结构以 `wp page edit --help` 或 `wp component edit --help` 展示的当前 OpenAPI Schema 为准。所有匹配片段必须来自最新源码，并在应用时唯一命中。
 
 页面/组件创建、源码编辑以及组件复杂 metadata 更新本身会自动校验。写入任务终态成功时，返回的 `result.validation` 字段已包含与平台智能体工具完全一致的有界布局诊断与校验文本（包含结论、摘要、布局分类统计、具体警告及定位；无警告时为 `"检查通过，无警告"`）。外部 Agent 可直接依据 `result.validation` 发现并微调布局问题，无需为了“证明已经校验”重复调用同一 `validate`；任务失败时，`error.details.validation` 亦携带错误诊断定位。

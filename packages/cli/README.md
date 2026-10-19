@@ -102,7 +102,7 @@ wp --raw project list
 
 Skill 与 CLI 一起发布，但使用独立版本。`wp skill status` 会识别缺失、过期、较新、不兼容、用户修改和未受管理等状态；普通升级不会覆盖用户修改，`--force` 会先保留同级备份。CLI 升级不会隐式改写已安装 Skill，需要重新运行 `wp skill install` 完成同步。若此前版本曾向 `.claude/skills`、`.mimocode/skills`、`~/.config/mimocode/skills` 或 `.workbuddy/skills` 安装过副本，升级后请手动移除这些旧目录，统一使用 `.agents/skills`。
 
-当前源码版本关系：CLI `0.3.3` 内置 `web-presentation` Skill `1.4.1`，Skill 声明的 CLI 兼容范围为 `>=0.3.3,<0.4.0`。已发布的 CLI 0.3.2 安装包仍携带旧 Skill，升级后需要重新运行 `wp skill install` 同步。之所以提高下限，是因为 Skill 已使用 `asset upload --type model3d`、`asset replace` 和 `asset download`，这些能力从 CLI `0.3.2` 才提供。构建时会把这组关系与规范化内容 SHA-256 写入 manifest。Skill `1.3.4` 补充三维模型（自包含 GLB）的资源发现、`AssetModel` 引用、相机配置、静态姿态边界和视觉复核；CLI 同步新增 `model3d` 类型、按基线替换与原始文件下载。Skill `1.4.0` 补充音频资源、项目音频设置与旁白/音效能力门禁；CLI 0.3.3 起 `asset upload --type audio`、`asset list --type audio`、`asset tags list --type audio` 可用，并新增 `project audio get/update/clear`。已发布安装包需要升级后才能使用。
+当前源码版本关系：CLI `0.3.4` 内置 `web-presentation` Skill `1.4.2`，Skill 兼容范围为 `>=0.3.4,<0.4.0`。升级 CLI 后需重新运行 `wp skill install` 同步原安装范围；Doctor 会展示安装原因、实际版本和修复命令。构建时会把版本关系与规范化内容 SHA-256 写入 manifest。
 
 `wp skill export` 生成的标准 ZIP 可用于支持本地上传的产品；CLI 不从 URL 或第三方仓库下载 Skill。
 
@@ -143,12 +143,20 @@ wp style list
 wp job wait <job_id>
 ```
 
-复杂写入参数使用 `--payload-file`、`--edits-file`、`--content-file`、`--route-file` 和 `--ids-file`。Build、构建产物下载、Agent 运行、图片能力、Restore 和 MCP 不属于当前 CLI。
+复杂写入参数使用 `--payload-file`、`--edits-file`、`--content-file`、`--route-file` 和 `--ids-file`。CLI 支持按已知任务 ID 下载构建产物；发起构建、Agent 运行、图片能力、Restore 和 MCP 不属于当前 CLI。
 
 叶子命令的 `--help` 会从当前 Profile 的 Backend `/openapi.json` 加载请求参数和完整 Schema；契约获取或解析失败时不输出部分帮助，stderr 输出具体错误并退出 1，不缓存 Schema。
 
 写入命令支持 `--idempotency-key <key>`；网络超时后需要重放同一业务请求时复用原 key，不要把同一个 key 用于不同请求。
 
+
+### 0.3.4 行为变更
+
+- 页面和组件 `validate` 省略 `--mode` 时按 `--source-file` / `--edits-file` 自动选择 `content` / `edits`；无文件时使用 `current`。显式模式与文件不匹配、同时提供两种文件或空编辑数组时直接报错，避免静默忽略候选输入。
+- 新增 `project route add <project_id> --page-id <page_id> --route <segment> [--parent <group>]`，保留已有节点及原始放映覆盖；默认追加，也可指定 `--order`、`--hidden`。相同挂载重复执行不写入；不同绑定冲突会失败。`route update` 只编辑已有节点，新增分组或整树编排使用 `route replace`。这些操作仍通过整树写回实现，同一项目不要并发改路由。
+- `asset upload --overwrite` 显式启用通用同名覆盖，服务端优先匹配原始文件名，再匹配逻辑名；不携带版本基线。需要并发保护时使用按 ID 的 `asset replace --expected-file-hash`；`model3d` 不允许通用覆盖。重名错误会给出两个恢复入口。
+- Doctor 的 Skill 警告同时提供中文原因、安装/内置版本、完整路径和对应范围的修复命令；长路径和命令在表格外折行显示。
+- 内置 Skill `1.4.2` 同步上述入口、音量与 cue 能力门禁、候选模式和音频帮助中完整嵌套 Schema 的读取方式。
 
 ### 0.3.2 行为变更
 

@@ -112,3 +112,25 @@ def test_openapi_help_renders_multipart_and_fails_without_partial_help() -> None
     assert offline.exit_code == 1
     assert offline.stdout == ""
     assert "offline" in offline.stderr
+
+
+def test_audio_help_includes_nested_cue_schema() -> None:
+    """音频帮助必须展开嵌套 cue 字段与约束，不能只返回通用请求头。"""
+
+    document = {
+        "paths": {"/api/v1/projects/{project_id}/configuration": {"put": {
+            "requestBody": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/AudioSettings"}}}},
+        }}},
+        "components": {"schemas": {
+            "AudioSettings": {"properties": {"cue_bindings": {"type": "array", "items": {"$ref": "#/components/schemas/AudioCueBindingInput"}}}},
+            "AudioCueBindingInput": {"required": ["key", "asset_id"], "properties": {
+                "key": {"type": "string"}, "asset_id": {"type": "integer", "minimum": 1},
+                "gain_percent": {"type": "integer", "minimum": 0, "maximum": 100},
+            }},
+        }},
+    }
+    with patch("wp.openapi_help.ApiClient.get_openapi_schema", return_value=document):
+        result = CliRunner().invoke(main, ["project", "audio", "update", "--help"])
+    assert result.exit_code == 0, result.output
+    for field in ("AudioCueBindingInput", '"key"', '"asset_id"', '"gain_percent"', '"maximum": 100'):
+        assert field in result.output

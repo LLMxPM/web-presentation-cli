@@ -6,6 +6,7 @@ import click
 
 from wp.client import ApiClient, ApiClientError
 from wp.commands.screenshot import screenshot_cmd
+from wp.commands.validation_input import build_validation_payload
 from wp.config import get_profile, load_config
 from wp.formatter import print_code, print_error, print_table
 from wp.commands.common import (
@@ -312,27 +313,20 @@ def page_dependencies_cmd(ctx: click.Context, page_id: int) -> None:
 @click.option(
     "--mode",
     type=click.Choice(["current", "content", "edits"]),
-    default="current",
-    show_default=True,
-    help="校验模式：current 校验当前源码；content 校验完整候选源码；edits 校验结构化编辑后的候选源码。",
+    default=None,
+    help="校验模式；省略时按 --source-file 推断 content、按 --edits-file 推断 edits，否则使用 current。",
 )
 @click.option("--source-file", type=click.Path(exists=True, dir_okay=False), help="content 模式使用的完整候选源码文件")
 @click.option("--edits-file", type=click.Path(exists=True, dir_okay=False), help=_PAGE_EDITS_FILE_HELP)
 @click.option("--detail", is_flag=True, help="返回更详细的校验诊断")
 @click.pass_context
-def validate_page_cmd(ctx: click.Context, page_id: int, mode: str, source_file: str | None, edits_file: str | None, detail: bool) -> None:
+def validate_page_cmd(ctx: click.Context, page_id: int, mode: str | None, source_file: str | None, edits_file: str | None, detail: bool) -> None:
     """校验页面当前或候选源码。"""
 
+    payload = build_validation_payload(
+        "page", page_id, mode=mode, source_file=source_file, edits_file=edits_file, detail=detail,
+    )
     try:
-        payload: dict[str, object] = {"entity_type": "page", "entity_id": page_id, "mode": mode, "detail": detail}
-        if mode == "content":
-            if not source_file:
-                raise click.UsageError("content 模式必须提供 --source-file。")
-            payload["source_code"] = read_text_file(source_file, label="页面源码")
-        if mode == "edits":
-            if not edits_file:
-                raise click.UsageError("edits 模式必须提供 --edits-file。")
-            payload["edits"] = require_array(read_json_file(edits_file, label="页面编辑操作"), label="页面编辑操作")
         output_result(ctx, get_client(ctx).validate_entity(payload), profile="validation", detail=detail)
     except ApiClientError as err:
         handle_api_error("页面校验失败", err)

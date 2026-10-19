@@ -86,6 +86,8 @@ wp asset replace <asset_id> .tmp/web-presentation/chapter-01-v2.mp3 \
 
 当前 CLI 的 `--type` 若不包含 `audio`，停止并报告需要升级 CLI，不要改用其他资源类型或直接调用未公开接口。替换前从 `asset get` 读取最新 `file_hash`；`ASSET_VERSION_CONFLICT` 表示基线过期，重新读取后再提交。
 
+`ASSET_NAME_CONFLICT` 时先查询冲突资源，优先使用 `asset replace <asset_id> <file> --expected-file-hash <hash>` 保留版本保护。确认需要通用覆盖时可给 `asset upload` 加 `--overwrite`：服务端先按原始文件名匹配 active 资源，再按逻辑名匹配；此入口不检查版本基线。`model3d` 不支持通用覆盖，必须使用 `asset replace`。
+
 项目音频设置使用专用命令，不要把读取模型直接写回：
 
 ```bash
@@ -98,9 +100,14 @@ wp --json project audio clear <project_id> --idempotency-key <key>
 - `update` 必须提交完整对象，未知字段、只读字段、`null` 与缺失音量会被拒绝；显式空 `cue_bindings` 表示清空绑定。
 - `clear` 只删除 cue 绑定并保留三段音量，由服务端单事务执行；不要用 `get` 后 `update` 模拟清空。
 - cue 绑定只接受当前工作空间 active 音频资源的 ID，key 为小写点分段且在同一项目内唯一。含非空 cue 的写入（含 `project update` 与 `project configuration update`）要求 `capabilities.slideshow.audio.audio_cues=true`；能力缺失或为 false 时 CLI 不发送写入。
+- 不含非空 cue 的音量写入和 `clear` 不受 `audio_cues` 门禁；非空 cue 被拒时错误码为 `AUDIO_CUES_NOT_OPEN`，不会发送业务写入。完整绑定字段与范围可在 `project audio update --help` 的 `referencedSchemas.AudioCueBindingInput` 查看，能力关闭不影响读取 Schema。
 - `wp project get --json` 保留服务端返回的 `slideshow` 与 `audio_settings`；旧服务端缺字段时保持缺失，不补 null 或默认配置。需要完整绑定摘要时仍使用 `project audio get` 或 `project configuration get`。
 
 旁白与交互音效的页面写法、能力约束和验证边界见 [资源与设计系统](./design-system-and-assets.md)；CLI 只能写入配置和源码，不能证明声音已播放。
+
+## CLI 与 Skill 版本诊断
+
+`wp doctor` 会显示 Skill 警告原因、安装版本、内置版本、完整路径及对应范围的修复命令。升级 CLI 不会自动更新已安装 Skill；出现 `outdated` 时按原范围运行 `wp skill install --scope global` 或 `--scope project`，再用 `wp --json skill status --scope <scope>` 确认 `up_to_date`。自定义、未受管理或版本更高的目录先检查并保留需要的内容，不直接强制覆盖。
 
 ## 临时文件目录
 

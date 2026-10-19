@@ -2,6 +2,15 @@
 
 页面的 project_id 表示归属，路由树决定导航顺序、分组、路径及可见性；创建页面不会自动挂载。草稿可以不在路由中，完整演示交付必须核对所需页面均已挂载。
 
+新增单个页面挂载优先使用 `route add`，不必手工重写已有树：
+
+```bash
+wp project route add <project_id> --page-id <page_id> --route overview --idempotency-key <key>
+wp project route add <project_id> --page-id <page_id> --route details --parent chapter-1 --idempotency-key <key>
+```
+
+`--parent` 只能指向已有顶层分组；不提供时新增顶层页面。默认追加到同级最大 `order` 之后，也可指定 `--order` 与 `--hidden`。相同路径已绑定同一页面且设置一致时直接返回当前树；不同绑定不覆盖。`route update` 只修改已有节点，不能新增、重绑定或移动；创建分组、移动节点或批量重排使用 `route replace`。
+
 先执行 `wp project route replace --help` 获取当前契约，再 `wp --json project route get <project_id>` 和 `wp --json page list --project-id <project_id>` 读取基线。
 
 当前结构最多两层：顶层为 page 或 group，group 下只能是页面。group 必须有 group_title 和至少一个子页面，不能绑定 page_id；page 必须绑定当前项目真实页面，不能包含 group_title 或 children。route 是单段相对路径，不能使用 `/`、`/home`、`home/` 或 `a/b`。同级路径不得重复，order 决定同级顺序，hidden 控制导航隐藏。
@@ -14,7 +23,7 @@
 
 `wp project route replace <project_id> --route-file .tmp/web-presentation/route-tree.json --idempotency-key <key>` 是整树替换，遗漏的节点会被移除。GET 响应包含 id、page_code、display_title 等只读字段，不能原样回写；按当前写入 Schema 构造请求。
 
-替换前重新读取整树并保留任务范围外的节点。当前接口没有版本条件，读取后仍可能发生并发覆盖；幂等键不能解决并发冲突。不要并行修改同一项目路由，发现基线变化应重新协调，而非盲目覆盖。
+替换前重新读取整树并保留任务范围外的节点。`route add` 和 `route update` 也通过读取当前树后整树写回实现，自动保留其它节点和原始放映覆盖；当前接口没有版本条件，读取后仍可能发生并发覆盖，幂等键不能解决并发冲突。不要并行修改同一项目路由，发现基线变化应重新协调，而非盲目覆盖。
 
 ## 放映配置与路由覆盖
 

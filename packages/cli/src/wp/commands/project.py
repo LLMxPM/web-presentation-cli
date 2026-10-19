@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Any
-
 import click
 
 from wp.client import ApiClient, ApiClientError
@@ -26,207 +24,18 @@ from wp.commands.project_audio import (
     project_audio_group,
 )
 from wp.commands.project_build import project_build_group
+from wp.commands.project_route_add import add_project_route_cmd
 
-# 路由编辑允许的设置字段；route 只用于定位，不能改名或移动节点。
-ROUTE_EDIT_KEYS = frozenset({"route", "order", "hidden", "group_title", "transition", "advance"})
-SLIDESHOW_CAPABILITY_MISSING = "SLIDESHOW_CAPABILITY_MISSING"
-SLIDESHOW_MEDIA_CAPABILITY_MISSING = "SLIDESHOW_MEDIA_CAPABILITY_MISSING"
-SLIDESHOW_ADVANCE_MODE_UNKNOWN = "SLIDESHOW_ADVANCE_MODE_UNKNOWN"
-SLIDESHOW_ADVANCE_MODES = frozenset({"manual", "timer", "media_end"})
-
-
-def validate_advance_config(value: Any, label: str) -> tuple[bool, bool]:
-    """校验 advance 结构，返回是否需要 media_end 与媒体时限能力。"""
-
-    if value is None:
-        return False, False
-    if not isinstance(value, dict):
-        raise click.ClickException(f"[{SLIDESHOW_ADVANCE_MODE_UNKNOWN}] {label} 的 advance 必须是对象或 null。")
-    mode = value.get("mode")
-    if mode not in SLIDESHOW_ADVANCE_MODES:
-        raise click.ClickException(
-            f"[{SLIDESHOW_ADVANCE_MODE_UNKNOWN}] {label} 使用未知翻页模式 {mode!r}；"
-            "可用值：manual、timer、media_end。"
-        )
-    delay = value.get("delay_ms")
-    if not isinstance(delay, int) or isinstance(delay, bool):
-        raise click.ClickException(f"[{SLIDESHOW_ADVANCE_MODE_UNKNOWN}] {label} 的 advance.delay_ms 必须是整数。")
-    timeout = value.get("media_timeout_ms")
-    if timeout is not None and (not isinstance(timeout, int) or isinstance(timeout, bool)):
-        raise click.ClickException(
-            f"[{SLIDESHOW_ADVANCE_MODE_UNKNOWN}] {label} 的 advance.media_timeout_ms 必须是整数。"
-        )
-    return mode == "media_end", "media_timeout_ms" in value
-
-
-def require_slideshow_media_capability(
-    client: ApiClient,
-    project_id: int,
-    *,
-    needs_media_end: bool,
-    needs_media_timeout: bool,
-) -> None:
-    """按服务端能力拒绝未开放的媒体模式或字段，避免旧服务收到未知扩展。"""
-
-    if not needs_media_end and not needs_media_timeout:
-        return
-    project = client.get(f"/projects/{project_id}")
-    workspace_id = project.get("workspace_id") if isinstance(project, dict) else None
-    if not isinstance(workspace_id, int):
-        raise click.ClickException(
-            f"[{SLIDESHOW_MEDIA_CAPABILITY_MISSING}] 无法确定项目 {project_id} 的工作空间，"
-            "不能核对媒体放映能力。"
-        )
-    response = client.get(f"/workspaces/{workspace_id}/capabilities")
-    slideshow = response.get("slideshow") if isinstance(response, dict) else None
-    if not isinstance(slideshow, dict):
-        raise click.ClickException(
-            f"[{SLIDESHOW_MEDIA_CAPABILITY_MISSING}] 当前服务端未声明放映能力，"
-            "不能写入媒体模式或媒体时限；请升级服务端后重试。"
-        )
-    if needs_media_end and "media_end" not in (slideshow.get("advance_modes") or []):
-        raise click.ClickException(
-            f"[{SLIDESHOW_MEDIA_CAPABILITY_MISSING}] 当前服务端尚未开放 media_end 翻页；"
-            "未发送任何写入。"
-        )
-    if needs_media_timeout and (slideshow.get("schema_version") or 0) < 2:
-        raise click.ClickException(
-            f"[{SLIDESHOW_MEDIA_CAPABILITY_MISSING}] 当前服务端放映 Schema 低于 2，"
-            "不支持 media_timeout_ms；未发送任何写入。"
-        )
-
-
-
-def _route_write_page_fields(node: dict[str, Any], *, child: bool) -> dict[str, Any]:
-    """把页面节点转换为写入 Schema；保留原始覆盖值，过滤只读派生字段。"""
-
-    fields: dict[str, Any] = {
-        "route": node.get("route"),
-        "order": node.get("order"),
-        "hidden": bool(node.get("hidden", False)),
-        "page_id": node.get("page_id"),
-        "transition": node.get("transition"),
-        "advance": node.get("advance"),
-    }
-    if not child:
-        fields = {"route_type": "page", **fields}
-    return fields
-
-
-def build_route_tree_write_payload(tree: Any) -> dict[str, Any]:
-    """把 route-tree 响应转换为整树写入载荷，丢弃 id/生效值等只读字段。"""
-
-    if not isinstance(tree, dict) or not isinstance(tree.get("routes"), list):
-        raise click.ClickException("路由树响应缺少 routes 数组，无法安全写回。")
-    routes: list[dict[str, Any]] = []
-    for node in tree["routes"]:
-        if not isinstance(node, dict):
-            raise click.ClickException("路由树节点不是 JSON 对象，无法安全写回。")
-        route_type = node.get("route_type")
-        if route_type == "group":
-            children = node.get("children") or []
-            if not isinstance(children, list):
-                raise click.ClickException("分组节点的 children 必须是数组。")
-            if any(not isinstance(child, dict) for child in children):
-                raise click.ClickException("分组节点的 children 只能包含 JSON 对象。")
-            routes.append({
-                "route_type": "group",
-                "route": node.get("route"),
-                "order": node.get("order"),
-                "hidden": bool(node.get("hidden", False)),
-                "group_title": node.get("group_title"),
-                "children": [_route_write_page_fields(child, child=True) for child in children],
-            })
-        elif route_type == "page":
-            routes.append(_route_write_page_fields(node, child=False))
-        else:
-            raise click.ClickException(f"未知路由节点类型：{route_type}")
-    return {"routes": routes}
-
-
-def require_slideshow_route_tree(tree: dict[str, Any]) -> None:
-    """旧服务缺少放映覆盖/生效字段时明确失败，避免整树写回静默覆盖语义。"""
-
-    if not isinstance(tree, dict) or not isinstance(tree.get("routes"), list):
-        raise click.ClickException("路由树响应缺少 routes 数组，无法安全写回。")
-    nodes = []
-    for node in tree.get("routes") or []:
-        if not isinstance(node, dict):
-            continue
-        if node.get("route_type") == "page":
-            nodes.append(node)
-        elif node.get("route_type") == "group":
-            nodes.extend(child for child in node.get("children") or [] if isinstance(child, dict))
-    if not nodes:
-        return
-    if not all("effective_slideshow" in node and "transition" in node and "advance" in node for node in nodes):
-        raise click.ClickException(
-            f"[{SLIDESHOW_CAPABILITY_MISSING}] 当前服务端未声明放映配置能力，"
-            "无法安全保留路由覆盖；请升级服务端后重试。"
-        )
-
-
-def _normalize_route_selector(value: Any) -> str:
-    """把编辑选择器统一为不带首尾斜杠的完整路由路径。"""
-
-    if not isinstance(value, str):
-        raise click.ClickException("路由编辑的 route 必须是字符串。")
-    normalized = value.strip().strip("/")
-    if not normalized:
-        raise click.ClickException("路由编辑的 route 不能为空。")
-    return normalized
-
-
-def apply_route_edits(payload: dict[str, Any], edits: list[Any]) -> None:
-    """按完整路由路径应用排序、隐藏与覆盖编辑；transition/advance 可显式 null。"""
-
-    index: dict[str, tuple[dict[str, Any], dict[str, Any] | None, bool]] = {}
-    for node in payload["routes"]:
-        index[_normalize_route_selector(node.get("route"))] = (node, None, node["route_type"] == "group")
-        for child in node.get("children") or []:
-            index[f"{_normalize_route_selector(node.get('route'))}/{_normalize_route_selector(child.get('route'))}"] = (
-                child, node, False,
-            )
-    seen: set[str] = set()
-    for edit in edits:
-        if not isinstance(edit, dict):
-            raise click.ClickException("每条路由编辑必须是 JSON 对象。")
-        unknown = set(edit) - ROUTE_EDIT_KEYS
-        if unknown:
-            raise click.ClickException(f"路由编辑包含未知字段：{', '.join(sorted(unknown))}。")
-        selector = _normalize_route_selector(edit.get("route"))
-        if selector in seen:
-            raise click.ClickException(f"路由编辑重复选择：{selector}。")
-        seen.add(selector)
-        target = index.get(selector)
-        if target is None:
-            raise click.ClickException(f"路由不存在：{selector}。")
-        node, parent, is_group = target
-        if len(edit) == 1:
-            raise click.ClickException(f"路由编辑 {selector} 没有提供任何设置。")
-        if "group_title" in edit:
-            if not is_group or parent is not None:
-                raise click.ClickException(f"只有顶层分组可以设置 group_title：{selector}。")
-            node["group_title"] = edit["group_title"]
-        if "order" in edit:
-            order = edit["order"]
-            if isinstance(order, bool) or not isinstance(order, int):
-                raise click.ClickException(f"路由 {selector} 的 order 必须是整数。")
-            node["order"] = order
-        if "hidden" in edit:
-            hidden = edit["hidden"]
-            if not isinstance(hidden, bool):
-                raise click.ClickException(f"路由 {selector} 的 hidden 必须是布尔值。")
-            node["hidden"] = hidden
-        for key in ("transition", "advance"):
-            if key not in edit:
-                continue
-            if is_group:
-                raise click.ClickException(f"分组节点不接受 {key} 覆盖：{selector}。")
-            value = edit[key]
-            if value is not None and not isinstance(value, dict):
-                raise click.ClickException(f"路由 {selector} 的 {key} 必须是对象或 null。")
-            node[key] = value
+from wp.commands.project_route_tree import (
+    apply_route_edits,
+    build_route_tree_write_payload,
+    require_slideshow_route_tree,
+)
+from wp.commands.project_slideshow import (
+    SLIDESHOW_CAPABILITY_MISSING,
+    require_slideshow_media_capability,
+    validate_advance_config,
+)
 
 
 @click.group("project")
@@ -506,7 +315,7 @@ def replace_project_route_cmd(ctx: click.Context, project_id: int, route_file: s
     "--edit-file",
     type=click.Path(exists=True, dir_okay=False),
     required=True,
-    help="路由编辑 JSON 数组；每项用 route 定位，可设置 order、hidden、group_title、transition、advance",
+    help="只修改已有节点的 JSON 数组；可设置 order、hidden、group_title、transition、advance；新增页面用 route add，整树编排用 route replace",
 )
 @idempotency_key_option
 @click.pass_context
@@ -537,6 +346,9 @@ def update_project_route_cmd(ctx: click.Context, project_id: int, edit_file: str
         output_result(ctx, client.put(f"/projects/{project_id}/route-tree", json_data=payload))
     except ApiClientError as err:
         handle_api_error("更新项目路由树失败", err)
+
+
+project_route_group.add_command(add_project_route_cmd)
 
 
 @openapi_command(project_group, "apply-style", contract("POST", "/api/v1/projects/{project_id}/apply-style"))

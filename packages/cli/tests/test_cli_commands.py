@@ -44,7 +44,7 @@ def test_cli_version() -> None:
     result = CliRunner().invoke(main, ["--version"])
 
     assert result.exit_code == 0, result.output
-    assert result.output.strip() == "wp, version 0.3.3"
+    assert result.output.strip() == "wp, version 0.3.4"
 
 
 def test_raw_option_is_exposed_and_mutually_exclusive_with_json() -> None:

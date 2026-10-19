@@ -275,7 +275,7 @@ def get_project_audio_cmd(ctx: click.Context, project_id: int) -> None:
     "--audio-file",
     type=click.Path(exists=True, dir_okay=False),
     required=True,
-    help="完整 audio_settings JSON；可直接提供音频设置对象或包含 audio_settings 字段的对象",
+    help="完整 audio_settings JSON；可直接提供设置对象或包含 audio_settings 的对象；cue 完整字段与约束见下方 referencedSchemas.AudioCueBindingInput",
 )
 @idempotency_key_option
 @click.pass_context

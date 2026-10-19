@@ -13,9 +13,7 @@ from wp.config import get_profile, load_config
 from wp.openapi_contracts import validate_registered_contracts
 from wp_api_client.openapi import safe_url
 from wp.formatter import print_json, print_table
-from wp.skills.catalog import get_bundled_skill
-from wp.skills.installer import inspect_target
-from wp.skills.targets import plan_targets
+from wp.skills.diagnostics import print_skill_details, skill_diagnostic
 
 
 @click.command("doctor")
@@ -32,36 +30,7 @@ def doctor_cmd(ctx: click.Context) -> None:
 
     # 2. 内置 Skill 与当前全局/项目安装版本
     try:
-        bundled_skill = get_bundled_skill("web-presentation")
-        skill_targets = [
-            *plan_targets(bundled_skill.name, scope="global"),
-            *plan_targets(bundled_skill.name, scope="project"),
-        ]
-        installed = [
-            inspect_target(bundled_skill, target)
-            for target in skill_targets
-            if target.path.exists()
-        ]
-        unhealthy = [item for item in installed if item["status"] != "up_to_date"]
-        if unhealthy:
-            summary = "；".join(
-                f"{item['path']}={item['status']}" for item in unhealthy
-            )
-            diagnostics.append(
-                {
-                    "check": "Agent Skill",
-                    "value": f"内置 v{bundled_skill.version}；{summary}",
-                    "status": "warning",
-                }
-            )
-        else:
-            diagnostics.append(
-                {
-                    "check": "Agent Skill",
-                    "value": f"内置 v{bundled_skill.version}；已安装 {len(installed)} 处",
-                    "status": "ok" if installed else "warning",
-                }
-            )
+        diagnostics.append(skill_diagnostic())
     except (OSError, RuntimeError, ValueError) as exc:
         diagnostics.append({"check": "Agent Skill", "value": str(exc), "status": "error"})
 
@@ -140,5 +109,6 @@ def doctor_cmd(ctx: click.Context) -> None:
     status_labels = {"ok": "正常", "warning": "警告", "error": "失败"}
     rows = [[item["check"], item["value"] + ("\n" + json.dumps({"code": item["code"], "details": item["details"]}, ensure_ascii=False) if "code" in item else ""), status_labels.get(item["status"], item["status"])] for item in diagnostics]
     print_table("CLI 诊断检查报告", ["检查项", "当前状态", "判定结果"], rows)
+    print_skill_details(diagnostics)
 
     ctx.exit(1 if any(item["status"] == "error" for item in diagnostics) else 0)

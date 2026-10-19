@@ -181,22 +181,31 @@ def download_asset_cmd(ctx: click.Context, asset_id: int, output: str | None, fi
 @click.option("--type", "asset_type", type=click.Choice(ASSET_TYPES), required=True, help="上传资源类型；音频使用 audio")
 @click.option("--name", help="平台逻辑名；默认使用文件名主干")
 @click.option("--description", help="资源内容、来源和使用场景说明")
+@click.option("--overwrite", is_flag=True, help="显式覆盖同名文件或逻辑名资源；不校验版本基线，需版本保护请用 asset replace；model3d 不支持")
 @idempotency_key_option
 @click.pass_context
-def upload_asset_cmd(ctx: click.Context, file_path: str, asset_type: str, name: str | None, description: str | None) -> None:
+def upload_asset_cmd(ctx: click.Context, file_path: str, asset_type: str, name: str | None, description: str | None, overwrite: bool) -> None:
     """上传二进制、图片、音频或三维模型资源。"""
 
     path = Path(file_path)
+    if overwrite and asset_type == "model3d":
+        raise click.UsageError("model3d 不支持 --overwrite，请使用 wp asset replace 并提供 --expected-file-hash。")
+    data = {"asset_type": asset_type, "name": name or path.stem, "description": description}
+    if overwrite:
+        data["overwrite"] = "true"
     try:
         with path.open("rb") as file_obj:
             result = get_client(ctx).upload(
                 "/assets",
                 files={"file": _file_part(path, file_obj, asset_type=asset_type)},
-                data={"asset_type": asset_type, "name": name or path.stem, "description": description},
+                data=data,
             )
         output_result(ctx, result)
     except ApiClientError as err:
-        handle_api_error("上传资源失败", err)
+        message = "上传资源失败"
+        if err.code == "ASSET_NAME_CONFLICT":
+            message += "；确认覆盖后可加 --overwrite，按 ID 和版本基线替换请用 wp asset replace"
+        handle_api_error(message, err)
 
 
 @openapi_command(

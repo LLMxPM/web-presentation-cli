@@ -20,6 +20,7 @@ from wp.commands.common import (
     resolve_wait_job,
 )
 from wp.config import get_profile, load_config
+from wp.commands.validation_input import build_validation_payload
 from wp.formatter import print_table
 from wp.openapi_help import contract, openapi_command
 
@@ -276,24 +277,18 @@ def component_dependencies_cmd(ctx: click.Context, component_id: int) -> None:
     ),
 )
 @click.argument("component_id", type=int)
-@click.option("--mode", type=click.Choice(["current", "content", "edits"]), default="current", show_default=True, help="校验当前草稿、完整候选源码或结构化 edits")
+@click.option("--mode", type=click.Choice(["current", "content", "edits"]), default=None, help="省略时按源码/编辑文件推断 content/edits，无文件时校验 current")
 @click.option("--source-file", type=click.Path(exists=True, dir_okay=False), help="content 模式必填的完整候选 SFC")
 @click.option("--edits-file", type=click.Path(exists=True, dir_okay=False), help="edits 模式必填的结构化编辑 JSON 数组")
 @click.option("--preview-schema-file", type=click.Path(exists=True, dir_okay=False), help="可选的候选 preview_schema JSON 对象")
 @click.option("--detail", is_flag=True, help="返回完整编译、渲染和布局诊断")
 @click.pass_context
-def validate_component_cmd(ctx: click.Context, component_id: int, mode: str, source_file: str | None, edits_file: str | None, preview_schema_file: str | None, detail: bool) -> None:
+def validate_component_cmd(ctx: click.Context, component_id: int, mode: str | None, source_file: str | None, edits_file: str | None, preview_schema_file: str | None, detail: bool) -> None:
     """校验组件当前或候选源码。"""
 
-    payload: dict[str, object] = {"entity_type": "component", "entity_id": component_id, "mode": mode, "detail": detail}
-    if mode == "content":
-        if not source_file:
-            raise click.UsageError("content 模式必须提供 --source-file。")
-        payload["source_code"] = read_text_file(source_file, label="组件源码")
-    if mode == "edits":
-        if not edits_file:
-            raise click.UsageError("edits 模式必须提供 --edits-file。")
-        payload["edits"] = require_array(read_json_file(edits_file, label="组件编辑操作"), label="组件编辑操作")
+    payload = build_validation_payload(
+        "component", component_id, mode=mode, source_file=source_file, edits_file=edits_file, detail=detail,
+    )
     if preview_schema_file:
         payload["preview_schema"] = require_object(read_json_file(preview_schema_file, label="Preview Schema"), label="Preview Schema")
     try:
