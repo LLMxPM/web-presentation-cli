@@ -67,6 +67,8 @@ wp --json page dependencies <page_id>
 
 ## 5. 编写页面 SFC
 
+使用图标前执行[图标发现与契约读取](./design-system-and-assets.md#图标发现与契约读取)流程；完整读取关键契约字段，不截断 JSON 或猜测示例资源名。
+
 构图中选定图片、音频、公式、数据图表、流程图或三维模型后，先按 [资源与设计系统](./design-system-and-assets.md) 选择对应 Runtime Kit 渲染组件，并用 `wp runtime-kit get <item>` 读取真实路径、用法和参数。已有共享资源按 `name` 引用；一次性公式或图表可按契约直接传 `content`，需要跨页复用或独立维护时再创建资源。三维模型只引用真实 `model3d` 资源名，按“查询模型 → 读取渲染契约 → 配置视角”配置场景和相机，不向 `AssetModel` 传 URL、路径或 GLB 文本。音频只引用真实 `audio` 资源名：内容音频使用 `purpose="content"` 并保留手动播放；旁白仅在 `page_narration=true` 时使用，禁止 loop，同一页最多一个旁白目标；交互音效使用 `useAudioCue.v1` 且仅在 `audio_cues=true` 时承诺。
 
 页面必须是完整、可运行的 Vue 3 SFC。默认根结构：

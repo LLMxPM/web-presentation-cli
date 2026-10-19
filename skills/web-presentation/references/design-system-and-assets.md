@@ -21,7 +21,22 @@
 
 通过 `wp runtime-kit list` 发现当前能力，只对选中的项执行 `wp runtime-kit get <item>`，读取 `import_path`、`usage`、`constraints` 和 `preview_schema.props`；路径和参数以当前返回为准。Runtime 负责 ECharts、公式、Mermaid 和三维模型等渲染器的初始化与生命周期，页面负责内容、数据和布局。
 
+## 图标发现与契约读取
+
+按“查图标 → 读 Icon 契约 → 使用真实 name”执行：
+
+```bash
+wp --json asset list --type icon --page 1 --page-size 50
+wp --json asset list --type icon --keyword navigation --page 1 --page-size 50
+wp --json runtime-kit get Icon.v1
+```
+
+保留资源响应的 `total`、`page`、`page_size` 和 `items`，按分页继续查询；关键词未命中或第一页没有目标不代表工作空间没有图标。只引用当前工作空间的 active 资源。`Icon.v1` 是渲染契约，`home` 等示例不是内置资源保证；没有合适资源时，按当前任务授权创建安全 SVG 图标资源并使用返回的真实 `name`，不要用整页渲染逐个试探名称。独立 Runtime 可使用其自身图标配置，平台内容使用工作空间资源。
+
+Runtime Kit 详情输出保留完整契约。阅读时必须保留 `import_path`、`usage`、`constraints`、`preview_schema.props`（能力详情中的字段可能位于 `capability` 下）；如需缩小数据，按这些字段投影。不要使用 `json.dumps(... )[:N]` 或只读取前若干字符。缺少关键字段或出现省略标记时，补读该项完整详情后再写源码。
+
 ## 三维模型
+
 
 三维模型使用公开的 `model3d` 资源和 Runtime Kit 的 `AssetModel`；Three.js 只属于 Runtime 内部实现，页面和组件不直接初始化 Three.js。
 
