@@ -21,6 +21,10 @@ from wp.commands.common import (
     require_object,
 )
 from wp.openapi_help import contract, openapi_command
+from wp.commands.project_audio import (
+    gate_audio_settings_in_payload,
+    project_audio_group,
+)
 
 # 路由编辑允许的设置字段；route 只用于定位，不能改名或移动节点。
 ROUTE_EDIT_KEYS = frozenset({"route", "order", "hidden", "group_title", "transition", "advance"})
@@ -229,6 +233,9 @@ def project_group() -> None:
     """项目管理操作。"""
 
 
+project_group.add_command(project_audio_group)
+
+
 @openapi_command(project_group, "list", contract("GET", "/api/v1/projects"))
 @click.option("--page", "-p", default=1, type=int, help="页码")
 @click.option("--page-size", "-s", default=20, type=int, help="每页数量")
@@ -308,13 +315,15 @@ def create_project_cmd(ctx: click.Context, name: str | None, description: str | 
     """创建新项目；未使用 --payload-file 时必须提供 --name。"""
 
     try:
+        client = get_client(ctx)
         if payload_file:
             payload = require_object(read_json_file(payload_file, label="项目载荷"), label="项目载荷")
+            gate_audio_settings_in_payload(client, payload, workspace_id=client.workspace_id)
         else:
             if not name:
                 raise click.UsageError("未使用 --payload-file 时必须提供 --name。")
             payload = {"name": name, "description": description}
-        output_result(ctx, get_client(ctx).post("/projects", json_data=payload))
+        output_result(ctx, client.post("/projects", json_data=payload))
     except ApiClientError as err:
         handle_api_error("创建项目失败", err)
 
@@ -328,8 +337,10 @@ def update_project_cmd(ctx: click.Context, project_id: int, payload_file: str) -
     """更新项目元数据或基础配置。"""
 
     try:
+        client = get_client(ctx)
         payload = require_object(read_json_file(payload_file, label="项目更新载荷"), label="项目更新载荷")
-        output_result(ctx, get_client(ctx).patch(f"/projects/{project_id}", json_data=payload))
+        gate_audio_settings_in_payload(client, payload, project_id=project_id)
+        output_result(ctx, client.patch(f"/projects/{project_id}", json_data=payload))
     except ApiClientError as err:
         handle_api_error("更新项目失败", err)
 
@@ -367,8 +378,10 @@ def update_project_configuration_cmd(ctx: click.Context, project_id: int, payloa
     """更新项目展示配置。"""
 
     try:
+        client = get_client(ctx)
         payload = require_object(read_json_file(payload_file, label="项目配置载荷"), label="项目配置载荷")
-        output_result(ctx, get_client(ctx).put(f"/projects/{project_id}/configuration", json_data=payload))
+        gate_audio_settings_in_payload(client, payload, project_id=project_id)
+        output_result(ctx, client.put(f"/projects/{project_id}/configuration", json_data=payload))
     except ApiClientError as err:
         handle_api_error("更新项目配置失败", err)
 

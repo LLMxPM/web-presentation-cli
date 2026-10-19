@@ -4,12 +4,13 @@
 
 ## 按内容选择 Runtime 渲染能力
 
-生成页面或组件时，遇到图片、数学公式、数据图表、流程图或三维模型，优先使用对应 Runtime Kit 渲染组件。这个选择从内容需求开始；没有现成资源时，文本渲染组件也可以直接接收内容。
+生成页面或组件时，遇到图片、音频、数学公式、数据图表、流程图或三维模型，优先使用对应 Runtime Kit 渲染组件。这个选择从内容需求开始；没有现成资源时，文本渲染组件也可以直接接收内容。
 
 | 内容表达 | 资源的 `render_type` | 优先使用 |
 | --- | --- | --- |
 | 图片、照片、插图 | `image` | `AssetImage` |
 | 视频 | `video` | `AssetVideo`，必要时使用真实 poster |
+| 音频、旁白 | `audio` | `AssetAudio`，内容音频手动播放；旁白需 `page_narration` 能力开放 |
 | 三维模型 | `model3d` | `AssetModel`，只引用自包含 GLB 资源和真实 `name` |
 | Draw.io 图 | `drawio` | `AssetDrawio`，内容为 Draw.io XML |
 | 流程图、关系图等 Mermaid 图 | `mermaid` | `AssetMermaid`，内容为 Mermaid 源码 |
@@ -54,9 +55,93 @@ wp asset download <asset_id> --output .tmp/web-presentation/product.glb
 />
 ```
 
+## 音频、旁白与交互音效
+
+音频使用 `asset_type=audio`、`render_type=audio` 的工作空间资源，并通过 Runtime Kit 的 `AssetAudio` 传真实 `name`。平台首版不转码，推荐 MP3；允许 `.mp3`、`.m4a`、`.aac`、`.ogg`、`.wav`，扩展名与 MIME 必须同时匹配。音频是内容资源，不可文本编辑，不参与图片宽高比回填。
+
+先读取能力，再决定做内容音频、旁白还是 cue：
+
+```bash
+wp --json workspace capabilities
+wp --json asset list
+wp --json asset get <asset_id>
+wp runtime-kit get AssetAudio.v1
+wp runtime-kit get useAudioCue.v1
+```
+
+`capabilities.slideshow.audio` 给出三个独立开关：`audio_assets`、`page_narration`、`audio_cues`。当前阶段可能只开放 `audio_assets`；能力未开放的用途不得生成、绑定或向用户宣称。
+
+```bash
+wp asset upload .tmp/web-presentation/chapter-01.mp3 --type audio --name chapter-01 --idempotency-key <key>
+wp asset download <asset_id> --output .tmp/web-presentation/chapter-01.mp3
+wp asset replace <asset_id> .tmp/web-presentation/chapter-01-v2.mp3 \
+  --expected-file-hash <current_file_hash> --idempotency-key <key>
+```
+
+如果当前 CLI 的 `asset upload --type` 不接受 `audio`，停止并报告 CLI 需要升级；不要用其他资源类型绕过，也不要直接调用未公开接口。`asset replace` 必须携带最新 `file_hash`，基线不匹配返回 `ASSET_VERSION_CONFLICT`；替换保留资源 ID、名称和类型，并同步影响当前与历史页面预览，独立构建保留当次快照。
+
+内容音频由用户手动播放，页面不写 `autoplay`：
+
+```vue
+<!-- 文件功能：演示通过工作空间音频资源逻辑名渲染可手动播放的内容音频。 -->
+<AssetAudio name="chapter-01" purpose="content" controls class="w-full h-16" />
+```
+
+页面旁白只在 `page_narration=true` 时使用：
+
+```vue
+<!-- 文件功能：演示能力开放时声明页面旁白目标，不设置 loop 或 autoplay。 -->
+<AssetAudio name="chapter-01-narration" purpose="narration" :volume="0.9" class="w-full h-16" />
+```
+
+- 同一实际渲染页面最多一个 `purpose="narration"` 目标；旁白禁止 `loop=true`，组件不暴露 `autoplay`。
+- 旁白自动播放只发生在真实放映执行上下文；普通预览必须先由用户手势试听。
+- `advance.mode=media_end` 时旁白与其他参与媒体进入同一完成集合；`timer` 可能在旁白结束前翻页，`manual` 不因旁白结束翻页。制作旁白页时优先使用 `media_end`，并在保存前确认服务端已开放该模式。
+- 不要用截图证明旁白已经播放；截图只能证明资源名、播放器布局和页面结构。真实声音与自动播放需要在用户手动操作的预览或放映中验证。
+
+交互音效只使用公开 composable 和语义 cue key：
+
+```ts
+// 文件功能：演示通过 Runtime Kit composable 请求播放项目绑定的交互音效。
+import { useAudioCue } from '@runtime-kit/public/composables/audio/useAudioCue.v1'
+
+const { playCue } = useAudioCue()
+playCue('interaction.confirm')
+```
+
+- 只接受 `interaction.*` key；`transition.forward` 和 `transition.backward` 由 Runtime 切页通道独占，页面调用返回 `unavailable`。
+- 只在 `audio_cues=true` 时绑定和承诺音效；`played`、`skipped`、`unavailable` 只是同步状态，业务逻辑不得等待播放完成或依赖其副作用。
+- 预览、组件预览、截图、检查和导出上下文为 no-op；没有 cue 绑定、会话静音或加载失败时也不阻塞业务。
+- cue 绑定属于项目级音频设置，不是页面源码资源；不要向 `useAudioCue` 传 URL、资源 ID、音量或 `Audio` 实例。
+
+项目音频设置通过专用命令读写；cue 绑定只接受当前项目所在工作空间内的 active `audio` 资源：
+
+```bash
+wp --json project audio get <project_id>
+wp --json project audio update <project_id> --audio-file .tmp/web-presentation/audio.json --idempotency-key project-<id>-audio
+wp --json project audio clear <project_id> --idempotency-key project-<id>-audio-clear
+```
+
+`get` 返回服务端读取模型，绑定带 `asset_name`、`asset_type`、`asset_status` 等只读展示字段；`update` 只接受写模型：
+
+```json
+{
+  "master_volume_percent": 100,
+  "narration_volume_percent": 90,
+  "effects_volume_percent": 30,
+  "cue_bindings": [
+    { "key": "interaction.confirm", "asset_id": 51, "gain_percent": 80 }
+  ]
+}
+```
+
+- `update` 必须提交完整对象：三段音量与 `cue_bindings` 都必填，未知字段、只读字段、`null` 和缺失音量会被本地拒绝；显式空 `cue_bindings` 表示清空绑定。音量都是 0–100 的严格整数，cue key 使用小写点分段且在同一项目内唯一；跨工作空间、非音频资源或重复 key 应视为整批失败，不要部分重试。
+- `clear` 只删除 cue 绑定并保留三段音量，由服务端单事务执行；不要用 `get` 后 `update` 的读改写模拟清空，否则会覆盖期间其它客户端的音量更新。
+- 含非空 `cue_bindings` 的写入（包括 `project audio update`、`project update` 和 `project configuration update`）要求 `capabilities.slideshow.audio.audio_cues=true`；能力缺失或为 false 时 CLI 直接失败，不发送写入。`get` 仍可读取历史值，`clear` 在能力关闭时仍可降级治理。
+
 ## 共享资源与直接内容
 
-- **引用共享资源**：先查询当前工作空间的 active 资源，关注 `name`、`asset_type`、`render_type`、`content_editable`、版本/状态、标签和近似宽高比；向对应组件传真实逻辑名 `name`。图片上传后也使用返回的真实 name。
+- **引用共享资源**：先查询当前工作空间的 active 资源，关注 `name`、`asset_type`、`render_type`、`content_editable`、版本/状态、标签和近似宽高比；向对应组件传真实逻辑名 `name`。图片和音频上传后也使用返回的真实 name。
 - **直接渲染文本**：`AssetFormula`、`AssetChart`、`AssetMermaid` 和 `AssetDrawio` 支持 `content`；一次性内容可以直接传入 LaTeX、ECharts option JSON、Mermaid 源码或 Draw.io XML。`content` 是字符串；图表配置对象先用 `JSON.stringify` 转成文本，公式在脚本字符串中注意 LaTeX 反斜杠转义。
 - **决定是否创建资源**：已有合适资产优先复用；内容需要跨页共享或独立维护时创建文本资源，再按 name 引用。本页的一次性公式或图表可以直接传 content，无需为每个内容块新增资产。
 
@@ -87,7 +172,7 @@ const chartOptionJson = JSON.stringify({
 
 普通资源 URL 使用 `useAssetSrc`，背景使用 `useAssetBackground`；资源名来自 props 时使用 getter。`resolveResourcePath` 只适合非响应式代码，不要在 SFC 中直接解析动态 props。
 
-`Icon`、`AssetImage`、`AssetVideo`、`AssetModel` 等组件的 `name` 优先使用字符串字面量或同一 Vue 文件顶层的静态枚举，便于离线构建精确收集资源依赖。确需动态资源名时，候选名称必须来自当前工作空间 active 资源，并在项目 `build_extra_assets_json.asset_names` 中补齐所有可能引用；保存或预览成功不代表独立构建包含这些资源。`useAssetSrc(() => props.imageName)` 仍是 props 资源名的正确写法，但不免除动态资源名的构建额外资源要求。图标名必须等于资源逻辑名，优先查询现有图标再创建。
+`Icon`、`AssetImage`、`AssetVideo`、`AssetAudio`、`AssetModel` 等组件的 `name` 优先使用字符串字面量或同一 Vue 文件顶层的静态枚举，便于离线构建精确收集资源依赖。确需动态资源名时，候选名称必须来自当前工作空间 active 资源，并在项目 `build_extra_assets_json.asset_names` 中补齐所有可能引用；保存或预览成功不代表独立构建包含这些资源。`useAssetSrc(() => props.imageName)` 仍是 props 资源名的正确写法，但不免除动态资源名的构建额外资源要求。图标名必须等于资源逻辑名，优先查询现有图标再创建。
 
 ## 创建或上传资源
 
@@ -104,7 +189,7 @@ wp asset upload .tmp/web-presentation/hero-image.png --type image --name hero-im
 
 文本资源创建前查询是否已有 active 同名资源。可创建的文本类型包括 SVG 图标/图片、Draw.io、Mermaid、Chart 和 Formula；内容必须是完整 UTF-8 文本，并按命令帮助和 Backend Schema 满足扩展名及安全约束。图标 SVG 不得包含 script、事件属性、`foreignObject` 或远程引用，优先使用 `currentColor`。
 
-非 SVG 位图、video、font、model3d 等使用 `asset upload`；`model3d` 只接受自包含 `.glb`，更新已有模型必须用 `asset replace` 携带 `--expected-file-hash`，不能走通用覆盖。不要用 `asset create` 伪造二进制内容，也不要把 URL、本地路径或 base64 当成可信上传附件参数。生成或上传后用返回的真实 name/ID 和 render_type。
+非 SVG 位图、video、audio、font、model3d 等使用 `asset upload`；`model3d` 只接受自包含 `.glb`，`audio` 只接受受支持的音频扩展名和 MIME。更新已有二进制资源必须用 `asset replace` 携带 `--expected-file-hash`，不能走通用覆盖。不要用 `asset create` 伪造二进制内容，也不要把 URL、本地路径或 base64 当成可信上传附件参数。生成或上传后用返回的真实 name/ID 和 render_type。
 
 ## 主题
 

@@ -57,11 +57,50 @@ wp component update --help
 
 ```bash
 wp --json preview get --project-id <project_id>
-wp --json preview get --project-id <project_id> --route /overview
+wp --json preview get --project-id <project_id> --route overview
 wp --json preview get --page-id <page_id>
 ```
 
-项目预览支持 `--route`，页面预览不支持 `--route`；项目和页面目标只能选择一种。响应中的 `preview_url` 是短期 Preview Artifact 地址，不是正式发布地址。
+项目预览支持 `--route`，页面预览不支持 `--route`；项目和页面目标只能选择一种。响应中的 `preview_url` 是短期 Preview Artifact 地址，不是正式发布地址。Windows Git Bash 会把 `/overview` 当作文件路径转换；优先使用不带前导斜杠的 `--route overview`，确需前导斜杠时使用 `MSYS_NO_PATHCONV=1`。
+
+## 音频资源与项目音频设置
+
+先读取能力：
+
+```bash
+wp --json workspace capabilities --workspace-id <workspace_id>
+```
+
+`slideshow.audio` 的 `audio_assets`、`page_narration`、`audio_cues` 分别表示音频资产、页面旁白和项目 cue 是否开放。未开放的能力不得写入或向用户承诺；当前服务可能只开放 `audio_assets`。
+
+音频是 `asset_type=audio` 的工作空间资源：
+
+```bash
+wp --json asset list
+wp --json asset get <asset_id>
+wp asset upload .tmp/web-presentation/chapter-01.mp3 --type audio --name chapter-01 --idempotency-key <key>
+wp asset download <asset_id> --output .tmp/web-presentation/chapter-01.mp3
+wp asset replace <asset_id> .tmp/web-presentation/chapter-01-v2.mp3 \
+  --expected-file-hash <current_file_hash> --idempotency-key <key>
+```
+
+当前 CLI 的 `--type` 若不包含 `audio`，停止并报告需要升级 CLI，不要改用其他资源类型或直接调用未公开接口。替换前从 `asset get` 读取最新 `file_hash`；`ASSET_VERSION_CONFLICT` 表示基线过期，重新读取后再提交。
+
+项目音频设置使用专用命令，不要把读取模型直接写回：
+
+```bash
+wp --json project audio get <project_id>
+wp --json project audio update <project_id> --audio-file .tmp/web-presentation/project-audio.json --idempotency-key <key>
+wp --json project audio clear <project_id> --idempotency-key <key>
+```
+
+- `get` 返回带 `asset_name`、`asset_type`、`asset_status` 的读取摘要；`update` 只接受 `master_volume_percent`、`narration_volume_percent`、`effects_volume_percent` 与 `cue_bindings`（每项只允许 `key`、`asset_id`、`gain_percent`）。
+- `update` 必须提交完整对象，未知字段、只读字段、`null` 与缺失音量会被拒绝；显式空 `cue_bindings` 表示清空绑定。
+- `clear` 只删除 cue 绑定并保留三段音量，由服务端单事务执行；不要用 `get` 后 `update` 模拟清空。
+- cue 绑定只接受当前工作空间 active 音频资源的 ID，key 为小写点分段且在同一项目内唯一。含非空 cue 的写入（含 `project update` 与 `project configuration update`）要求 `capabilities.slideshow.audio.audio_cues=true`；能力缺失或为 false 时 CLI 不发送写入。
+- `wp project get --json` 保留服务端返回的 `slideshow` 与 `audio_settings`；旧服务端缺字段时保持缺失，不补 null 或默认配置。需要完整绑定摘要时仍使用 `project audio get` 或 `project configuration get`。
+
+旁白与交互音效的页面写法、能力约束和验证边界见 [资源与设计系统](./design-system-and-assets.md)；CLI 只能写入配置和源码，不能证明声音已播放。
 
 ## 临时文件目录
 
@@ -74,7 +113,7 @@ wp --json preview get --page-id <page_id>
 
 约定：
 
-- 输入载体（payload、edits、候选/写出的 SFC、route tree、资源文本与元数据、待上传模型）写在 `.tmp/web-presentation/` 下；文件名尽量带对象类型与 ID，例如 `page-42.vue`、`edits-42.json`、`component-7.vue`、`route-tree.json`、`product.glb`；
+- 输入载体（payload、edits、候选/写出的 SFC、route tree、资源文本与元数据、待上传音频/模型）写在 `.tmp/web-presentation/` 下；文件名尽量带对象类型与 ID，例如 `page-42.vue`、`edits-42.json`、`component-7.vue`、`route-tree.json`、`product.glb`、`chapter-01.mp3`；
 - 截图等输出证据写在 `.tmp/web-presentation/shot/`，例如 `shot/page-42.png`；下载的原始资源文件写入 `.tmp/web-presentation/`，不要写回 Skill 或包目录；
 - 用户提供的原始素材保持其真实路径；智能体自行生成或落盘的中间文件一律进入上述目录；
 - 汇报时给出相对路径即可；这些文件可随时删除，交付事实以 Backend 对象、Job 终态和重新读取结果为准。
