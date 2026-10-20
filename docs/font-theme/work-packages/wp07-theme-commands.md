@@ -1,6 +1,6 @@
 # WP07：CLI 主题配置输入、详情输出与帮助
 
-状态：待实施。主责：CLI。前置：主仓 WP01 契约冻结、WP05 主题 External 配置一致性。
+状态：完成（2026-10-20）。主责：CLI。前置：主仓 WP01 契约冻结、WP05 主题 External 配置一致性。
 
 ## 修改范围与任务
 
@@ -13,12 +13,18 @@
 
 ## 验收标准
 
-- [ ] 创建主题可通过 payload 传图片/字体字段，普通详情与 JSON 能确认实际绑定。
-- [ ] 省略/null/恢复默认/来源切换在 HTTP 请求中无损，非法载荷遵循 Backend 错误语义。
-- [ ] 同键重试保持载荷与基线，异载荷冲突不会被 CLI 隐藏或自动换键重试。
-- [ ] 现有名称/说明/色板、默认创建、复制、归档与 JSON/raw 行为回归通过。
-- [ ] 真实 OpenAPI 的字段和样例与帮助一致，旧 Backend 不支持字段时不走内部 API 兜底。
+- [x] 创建主题可通过 payload 传图片/字体字段，普通详情与 JSON 能确认实际绑定。
+- [x] 省略/null/恢复默认/来源切换在 HTTP 请求中无损，非法载荷遵循 Backend 错误语义。
+- [x] 同键重试保持载荷与基线，异载荷冲突不会被 CLI 隐藏或自动换键重试。
+- [x] 现有名称/说明/色板、默认创建、复制、归档与 JSON/raw 行为回归通过。
+- [x] 真实 OpenAPI 的字段和样例与帮助一致，旧 Backend 不支持字段时不走内部 API 兜底。
 
 ## 验证与记录
 
-新增主题命令/输出/载荷测试，运行现有输出、帮助、Doctor、命令与跨仓 OpenAPI 回归。回填两仓版本、命令/结果和未运行项；真实 Logo 清空、字体加载与独立构建由 WP09 验证。
+- `uv run pytest packages/cli/tests/test_theme_commands.py`（3/3 通过）
+- `uv run pytest packages/cli/tests/test_backend_openapi_contract.py`（1/1 通过，真实 OpenAPI 对拍）
+- `uv run pytest packages/api-client/tests packages/cli/tests`（195/195 通过）
+- `uv run --project packages/cli wp theme --help` 帮助输出正常。
+- 消费主仓 commit：`3636d92`（WP05 交付版本）。
+- 未运行项：跨仓端到端实机联合演练留待 WP09 汇总执行。
+

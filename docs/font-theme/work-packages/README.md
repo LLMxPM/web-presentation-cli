@@ -5,7 +5,7 @@
 | 编号 | 工作包 | 前置 | 状态 |
 | --- | --- | --- | --- |
 | WP06 | [字体与字体族命令](./wp06-font-commands.md) | 主仓 WP01、WP04 | 完成 |
-| WP07 | [主题配置与输出](./wp07-theme-commands.md) | 主仓 WP01、WP05 | 待实施 |
+| WP07 | [主题配置与输出](./wp07-theme-commands.md) | 主仓 WP01、WP05 | 完成 |
 | WP08 | [Skill 与安装包](./wp08-skill-distribution.md) | WP06、WP07 | 待实施 |
 
 主仓工作包入口：[联合执行清单](https://github.com/LLMxPM/web-presentation/blob/feature/cli-font-theme/docs/developer/cli-font-theme/work-packages/README.md)。跨仓 GitHub 链接推送后可用，本地位于同级主仓的同名路径。

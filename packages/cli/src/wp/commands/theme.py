@@ -66,11 +66,31 @@ def get_theme_cmd(ctx: click.Context, theme_id: int) -> None:
             output_result(ctx, theme, profile="theme")
             return
 
+        def _format_asset(asset: object, asset_id: object) -> str:
+            if isinstance(asset, dict) and asset.get("name"):
+                return f"{asset.get('name')} (ID: {asset.get('id')})"
+            if asset_id is not None:
+                return f"ID: {asset_id}"
+            return "-"
+
+        def _format_font(family: object, label: object) -> str:
+            if isinstance(family, dict) and family.get("name"):
+                return f"族: {family.get('name')} (ID: {family.get('id')})"
+            if label is not None:
+                return f"预设: {label}"
+            return "-"
+
         rows = [
             ["ID", str(theme.get("id"))],
             ["Key", str(theme.get("key"))],
             ["名称", str(theme.get("name"))],
             ["描述", str(theme.get("description") or "-")],
+            ["品牌 Logo", _format_asset(theme.get("logo_asset"), theme.get("logo_asset_id"))],
+            ["反色 Logo", _format_asset(theme.get("invert_logo_asset"), theme.get("invert_logo_asset_id"))],
+            ["项目图标", _format_asset(theme.get("project_icon_asset"), theme.get("project_icon_asset_id"))],
+            ["标题字体", _format_font(theme.get("heading_font_family"), theme.get("heading_font_label"))],
+            ["正文字体", _format_font(theme.get("body_font_family"), theme.get("body_font_label"))],
+            ["代码字体", _format_font(theme.get("code_font_family"), theme.get("code_font_label"))],
         ]
         print_table(f"主题 (ID: {theme_id}) 详情", ["属性", "值"], rows)
     except ApiClientError as err:
@@ -82,12 +102,19 @@ def get_theme_cmd(ctx: click.Context, theme_id: int) -> None:
     theme_group,
     "create",
     contract("POST", "/api/v1/themes"),
-    examples=('wp theme create --key light-corporate --name "企业浅色" --idempotency-key theme-light-corporate',),
+    examples=(
+        'wp theme create --key light-corporate --name "企业浅色" --idempotency-key theme-light-corporate',
+        'wp theme create --payload-file theme-brand.json --idempotency-key theme-brand-1',
+    ),
 )
 @click.option("--key", "-k", help="主题唯一标识 (例如 light-corporate)")
 @click.option("--name", "-n", help="主题名称")
 @click.option("--description", "-d", help="主题描述")
-@click.option("--payload-file", type=click.Path(exists=True, dir_okay=False), help="完整主题 JSON 请求体；提供后忽略 --key、--name 和 --description")
+@click.option(
+    "--payload-file",
+    type=click.Path(exists=True, dir_okay=False),
+    help="完整主题 JSON 请求体（支持配置 logo_asset_id、invert_logo_asset_id、project_icon_asset_id、heading_font_family_id、body_font_preset 等设计字段）；提供后忽略命令行 key/name/description",
+)
 @idempotency_key_option
 @click.pass_context
 def create_theme_cmd(ctx: click.Context, key: str | None, name: str | None, description: str | None, payload_file: str | None) -> None:
@@ -100,21 +127,41 @@ def create_theme_cmd(ctx: click.Context, key: str | None, name: str | None, desc
             if not key or not name:
                 raise click.UsageError("未使用 --payload-file 时必须提供 --key 和 --name。")
             payload = {"key": key, "name": name, "description": description}
-        output_result(ctx, get_client(ctx).post("/themes", json_data=payload))
+        output_result(ctx, get_client(ctx).post("/themes", json_data=payload), profile="theme")
     except ApiClientError as err:
         handle_api_error("创建主题失败", err)
 
 
-@openapi_command(theme_group, "update", contract("PATCH", "/api/v1/themes/{theme_id}"))
+@openapi_command(
+    theme_group,
+    "update",
+    contract("PATCH", "/api/v1/themes/{theme_id}"),
+    examples=(
+        'wp theme update 1 --payload-file update-palette.json --idempotency-key upd-theme-1',
+        'wp theme update 1 --payload-file clear-logo-switch-font.json --idempotency-key upd-theme-2',
+    ),
+)
 @click.argument("theme_id", type=int)
-@click.option("--payload-file", type=click.Path(exists=True, dir_okay=False), required=True, help="名称、说明或完整色板更新 JSON 请求体；不能修改 key")
+@click.option(
+    "--payload-file",
+    type=click.Path(exists=True, dir_okay=False),
+    required=True,
+    help="主题更新 JSON 请求体（支持更新名称、说明、色板，清空图片传 null，切换字体族传 family_id 或预设传 preset；禁止修改 key）",
+)
 @idempotency_key_option
 @click.pass_context
 def update_theme_cmd(ctx: click.Context, theme_id: int, payload_file: str) -> None:
-    """更新主题名称、描述和色板。"""
+    """更新主题设计配置（支持图片槽位清空/替换与三槽字体切换；禁止修改 key）。"""
 
     try:
-        output_result(ctx, get_client(ctx).patch(f"/themes/{theme_id}", json_data=require_object(read_json_file(payload_file, label="主题更新载荷"), label="主题更新载荷")))
+        output_result(
+            ctx,
+            get_client(ctx).patch(
+                f"/themes/{theme_id}",
+                json_data=require_object(read_json_file(payload_file, label="主题更新载荷"), label="主题更新载荷"),
+            ),
+            profile="theme",
+        )
     except ApiClientError as err:
         handle_api_error("更新主题失败", err)
 
