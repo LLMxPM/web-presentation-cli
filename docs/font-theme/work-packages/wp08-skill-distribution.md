@@ -1,6 +1,6 @@
 # WP08：Skill、文档、兼容版本与安装包交付
 
-状态：完成。主责：CLI / Skill / 分发。前置：[WP06](./wp06-font-commands.md)、[WP07](./wp07-theme-commands.md)。
+状态：已实现，真实环境兼容与联合验收待补齐。主责：CLI / Skill / 分发。前置：[WP06](./wp06-font-commands.md)、[WP07](./wp07-theme-commands.md)。历史包记录见下，本轮修复版本与验证见[本仓规划](../implementation-plan.md)。
 
 ## 修改范围与任务
 
@@ -18,10 +18,12 @@
 - [x] 示例只使用真实公开命令和查询得到的 ID/预设，复杂输入与失败恢复步骤可执行。
 - [x] CLI/Skill 版本、兼容范围、manifest/哈希和安装包资源一致。
 - [x] 客户端/CLI 全量测试、真实 OpenAPI 对拍和 Skill 分发验证通过，skip 单列。
-- [x] 隔离环境中的 wheel/sdist 安装消费通过，旧平台不支持语义有证据。
-- [x] WP09 已获得安装包摘要与候选版本；联合验收前保留待发布状态。
+- [ ] wheel/sdist 安装消费和旧平台兼容均有实测证据；本轮可验证安装包结构与隔离安装，旧平台仍待验收。
+- [ ] WP09 已完成真实联合验收并固定最终版本；此前保持待发布状态。
 
 ## 验证与记录
+
+以下为审查前历史记录，Skill 已修正为 1.4.4，旧产物哈希不代表修复后的源码。API/Mock 测试与分发检查不能证明 WP09 的字体加载、截图或独立构建已通过。
 
 - **发布版本更新**：
   - CLI 版本：`0.3.5`（`packages/cli/pyproject.toml`, `packages/cli/src/wp/__init__.py`）

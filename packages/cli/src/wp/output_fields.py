@@ -240,7 +240,7 @@ FONT_FACE_FIELDS = (
     "id",
     "workspace_id",
     "family_id",
-    "family_name",
+    "font_family",
     "asset_id",
     "asset_name",
     "font_format",

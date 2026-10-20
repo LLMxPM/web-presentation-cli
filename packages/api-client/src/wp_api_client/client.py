@@ -469,6 +469,7 @@ class ApiClient:
                 if not resp.is_success:
                     resp.read()
                     self._handle_response(resp)
+                response_headers = resp.headers.copy()
                 with tmp_path.open("wb") as file_obj:
                     for chunk in resp.iter_bytes():
                         file_obj.write(chunk)
@@ -482,7 +483,7 @@ class ApiClient:
                 except OSError:
                     pass
             raise
-        return headers, size, digest.hexdigest()
+        return response_headers, size, digest.hexdigest()
 
     def get_latest_page_screenshot(self, page_id: int) -> tuple[dict[str, Any], bytes]:
         """请求 External API v1 获取最新 PNG 截图 (一次性 GET 请求)。"""

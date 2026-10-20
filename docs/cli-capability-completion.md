@@ -11,7 +11,7 @@
 | 标准 | `wp standards page`, `wp standards component` |
 | 动态请求契约 | 目标叶子命令的 `--help` 从 Backend OpenAPI 展示 |
 | Runtime Kit | `wp runtime-kit list`, `wp runtime-kit get <item>` |
-| 字体 | `wp font list` |
+| 字体 | `wp font list/get/register/update`，`wp font family list/get/rename`；注册/更新使用 `--payload-file`，预设从 `workspace capabilities` 查询 |
 | 项目 | `list`, `get`, `create`, `update`, `archive`, `configuration get/update`, `route get/replace`, `apply-style`, `build-assets update` |
 | 页面 | `list`, `get`, `create`, `copy`, `update`, `source`, `edit`, `version list/get`, `dependencies`, `validate`, `screenshot`, `archive` |
 | 组件 | `list`, `get`, `create`, `update`, `edit`, `version list/get`, `dependencies`, `validate`, `publish`, `archive` |

@@ -1,6 +1,6 @@
 # CLI 字体管理与主题配置实施规划
 
-规划日期：2026-10-20。状态：WP06–WP08 全部完成，配合主仓完成 WP09 端到端联合验收（M0~M3 全部达成）。
+规划日期：2026-10-20。状态：WP06–WP08 已有实现，审查修复后进行定向与分发验证；WP09 待验收。撤回缺少真实环境证据的“全部完成”声明。
 
 开发分支：`feature/cli-font-theme`，从 `master` / `66d793147a968cf8c2ef00f2253cfa8693a9f0d9` 创建。评估 CLI 版本 `0.3.4`、Skill `1.4.2`；主仓评估基线为 `dev` / `12d2d2564e31c6f5cd7a9c0755c5f8f54a22a5a4`。这些是分析基线，发布时另行固定已验收的版本。
 
@@ -86,9 +86,9 @@ WP08 更新根 README、CLI README、能力矩阵、设计系统与平台模型�
 
 交付记录包含双方完整 commit、OpenAPI 摘要、CLI/Skill 版本、安装包摘要、测试命令/结果和 skip/未运行项。平台契约先交付，再发布依赖它的 CLI；本轮不推送、打标签或发布。
 
-## 6. 实施完成与联合验收交付记录
+## 6. 审查前实施历史与验收边界
 
-- **状态**：WP06–WP08 全部完成，配合主仓完成 WP09 端到端联合验收。
+- **状态**：已有实现与历史提交如下；真实安装包 CLI 联合流程、PostgreSQL、字体加载/截图、独立构建与旧平台实测尚待主仓 WP09 验收。
 - **CLI 仓 Git 提交**：
   - `23ccbbc` docs: 建立 CLI 字体与主题配置实施规划与工作包
   - `2fac29a` feat(font): 实现 CLI 字体与字体族管理命令及 OpenAPI 契约绑定 (WP06)
@@ -110,6 +110,19 @@ WP08 更新根 README、CLI README、能力矩阵、设计系统与平台模型�
   - `uv run pytest packages/api-client/tests packages/cli/tests`：195 passed（涵盖真实 Backend OpenAPI 契约对拍）。
   - `uv run python packages/cli/tests/verify_skill_distribution.py .tmp/dist`：退出码 0，内置 manifest、哈希和 METADATA 校验完全通过。
   - `uv run --project packages/cli wp --help` 及 `wp --version`：输出 `wp, version 0.3.5` 正常。
-- **未运行项**：
-  - 生产 PyPI 发布、Git 远程标签推送与线上环境部署，按后续人工授权执行。
-- **交付结论**：CLI 字体与主题管理能力全部交付，通过联合验收。
+- **未完成验收项**：PostgreSQL 事务/唯一性、真实安装包 CLI 联合流程、浏览器字体加载/PNG/Renderer attempt、独立构建及旧平台实测；另未发布、推送或部署。
+- **交付结论**：以上包摘要与测试数字是审查前历史记录，不能作为当前修复版本或联合验收的证据。
+
+## 7. 审查修复（2026-10-20）
+
+- CLI 响应使用 font_family，写入使用 family_name；新增表格/JSON/raw 及真实 OpenAPI 响应字段校验。
+- Skill 注册流程改为实际的 payload-file，预设从 capabilities 查询，Runtime 按字体资源逻辑名消费；真实文档命令在隔离文件系统和禁止网络条件下进入测试。
+- Skill 版本提升至 1.4.4，CLI 仍为尚未发布的 0.3.5 候选；此前 1.4.3 安装包摘要不再代表当前源码。
+- CLI 与 API Client 最终全量测试：198 passed，包含真实 Backend OpenAPI 对拍与 Skill 文档命令测试；命令为 `uv run --no-sync pytest packages/api-client/tests packages/cli/tests --tb=short -q`。
+- `uv build --offline --package web-presentation-cli --out-dir .tmp/review-font-theme-dist` 及随包 `verify_skill_distribution.py` 检查通过。wheel 已在 `.tmp/review-font-theme-install-20261020` 独立环境离线安装，确认加载隔离 site-packages 中的 CLI 0.3.5 和包内 Skill 1.4.4。
+- 真实构建下载发现 `download_file` 返回请求头，导致 ZIP 类型判断失败；已改为响应头并补成功下载回归，未放宽 MIME 检查。
+- 最终候选 wheel：140680 bytes，SHA256 `3668575092508175B21774AC094FE049173F1924FA6E04318797EA07333ECA8A`；sdist：132875 bytes，SHA256 `A7137F7E2F6CF6450E3FFC5EDC032DA16CBDBBA3B4EA4368E8114D31487B9A0C`。两者位于 `.tmp/review-font-theme-dist/`，未发布。
+- 经用户授权，全局 CLI 从 0.3.4 更新到修复后的 0.3.5，Skill 从 1.4.2 更新到 1.4.4（up_to_date），实际工作流使用该全局安装包；原默认 Profile 未切换。
+- 主仓最终相关回归 125 passed，PG 专项 13 passed / 1 个历史迁移条件 skip，Runtime 字体测试 13 passed / 类型检查通过，真实 Nginx 契约通过；Editor API 生成物检查沿用首轮结果（本轮无 DTO 变更）。
+- 真实 CLI 上传、注册、同族多字重/可变字体、主题图片/三槽字体、切换与清空、幂等/权限/归档/历史负例、并发移动与注册均已验证。浏览器以 CDP 实际字形和字体网络 SHA256 核验，独立 ZIP 阻断 Backend/Runtime 回源后仍可加载；文件替换后的 PNG 刷新和旧构建快照保持也已验证。
+- 详细证据集中在主仓 `docs/developer/cli-font-theme/live-validation-2026-10-20.md`。WP09 保留待最终验收：旧平台版本兼容实测与发布前最终 commit 固定尚未完成，未运行全仓 test:all，未发布、推送或部署。

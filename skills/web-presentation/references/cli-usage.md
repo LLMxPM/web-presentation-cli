@@ -115,17 +115,30 @@ wp --json asset list --type font
 wp asset upload .tmp/web-presentation/CustomSans-Regular.ttf --type font --name custom-sans --idempotency-key upload-font-sans
 
 # 2. 注册字体面并关联字体族
-wp --json font register <asset_id> --family-name "Custom Sans" --display-name "Custom Sans Regular" --weight 400 --style normal --idempotency-key reg-sans-regular
+wp --json font register --payload-file .tmp/web-presentation/font-register.json --idempotency-key reg-sans-regular
 
 # 3. 查看字体面与字体族
 wp --json font list
 wp --json font family list
+wp --json workspace capabilities
 
 # 4. 主题设计配置（通过 payload 文件传入图片与字体槽位）
 wp theme update <theme_id> --payload-file .tmp/web-presentation/theme-config.json --idempotency-key update-theme-config
 ```
 
-`theme-config.json` 示例：
+`font-register.json` 示例：将 asset_id 替换为上传返回的真实 ID；同族粗体使用另一个资源并设置 font_weight 为 700。
+
+```json
+{
+  "asset_id": 101,
+  "family_name": "Custom Sans",
+  "font_weight": "400",
+  "font_style": "normal",
+  "font_display": "swap"
+}
+```
+
+`theme-config.json` 示例：ID 必须替换为真实查询结果；预设先从能力目录确认，下面演示平台内置 token。
 
 ```json
 {
@@ -133,13 +146,14 @@ wp theme update <theme_id> --payload-file .tmp/web-presentation/theme-config.jso
   "invert_logo_asset_id": 13,
   "project_icon_asset_id": 14,
   "heading_font_family_id": 5,
-  "body_font_preset": "sans",
-  "code_font_preset": "mono"
+  "body_font_preset": "platform-sans",
+  "code_font_preset": "platform-mono"
 }
 ```
 
 - 自定义字体必须传入 `family_id`，不可传 `asset_id` 或 `font_id`；
-- 图片槽位与字体槽位传入 `null` 表示显式清空，省略键表示保持现状不变。
+- 图片 ID 传 null 表示清空；字体恢复默认必须同时提交该槽 family_id:null 与 preset:null，不能单独传 null。双省略保持现状。
+- 注册成功响应使用 `font_family` 展示族名，写入字段使用 `family_name`。非主题页面字体用 `useAssetFontFamily('custom-sans')` 按资源逻辑名消费。
 
 ## CLI 与 Skill 版本诊断
 

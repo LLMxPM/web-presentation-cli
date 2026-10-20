@@ -215,8 +215,8 @@ wp asset upload .tmp/web-presentation/hero-image.png --type image --name hero-im
 - 图片槽位必须传入当前工作空间 active 状态的真实资源 ID；`project_icon_asset_id` 必须是 `asset_type=icon` 资源；显式传入 `null` 表示清空，省略该键表示保持现状。
 - 字体槽位通过 `heading_font_family_id` / `heading_font_preset`、`body_font_family_id` / `body_font_preset`、`code_font_family_id` / `code_font_preset` 配置：
   - 若绑定工作空间自定义注册的字体族，必须传入 `family_id`（通过 `wp font family list` 获取），严禁混传 `asset_id` 或 `font_id`；
-  - 若使用预设系统字体族，传入对应 preset（如 `sans`、`serif`、`mono`、`system-ui`）；
-  - 清空自定义字体绑定时将对应的 `family_id` 显式设为 `null`；省略键表示保持现状。
+  - 先运行 `wp --json workspace capabilities` 读取 `fonts.presets.sans`（标题/正文）与 `fonts.presets.mono`（代码）中的真实 token；这些键是分类名，不能直接作为 preset 值；
+  - 同槽位的字体族与预设不能同时非空。恢复默认时将该槽的 `*_font_family_id` 和 `*_font_preset` 同时设为 `null`；单独传 null 非法，双省略表示保持现状。
 - 主题 palette 使用公开的 `text`、`background.default/invert`、`border`、`link` 和 `accent` 结构；不要把 Tailwind 类名、`background-subtle` 或 `tertiary` 当成主题 Schema 字段。
 
 ## 字体
@@ -224,9 +224,9 @@ wp asset upload .tmp/web-presentation/hero-image.png --type image --name hero-im
 字体管理包含字体面（Font Face）与字体族（Font Family），形成规范生命周期：
 
 1. **上传字体文件**：运行 `wp asset upload <file> --type font --name <name>` 获得资源 `asset_id`。注意上传资源仅是二进制素材，不等于已注册字体；
-2. **注册字体面**：运行 `wp font register <asset_id> --family-name <name> --display-name <label>` 注册字体面并关联到指定字体族（自动创建新族或归入同名已有族），获得 `font_id` 与 `family_id`。支持通过 `--weight` 与 `--style` 区分字重和字形；
-3. **管理字体族**：通过 `wp font family list` 查看工作空间预设系统字体族与自定义注册字体族；需要时可通过 `wp font family rename <family_id> --name <new_name>` 调整族展示名称；
-4. **绑定与消费**：将 `family_id` 绑定至主题对应字体槽位；页面中优先使用 `font-heading`、`font-body`、`font-code` 主题语义类；页面或组件消费非主题自定义字体时使用 `useAssetFontFamily(family_id)`。切勿在页面 CSS 中手写 `@font-face` 或硬编码字体文件 URL。
+2. **注册字体面**：将真实 `asset_id`、`family_name` 与需要的 `font_weight`、`font_style` 等字段写入 `.tmp/web-presentation/font-register.json`，运行 `wp font register --payload-file .tmp/web-presentation/font-register.json --idempotency-key <key>`。返回的 `id` 是 font_id，`family_id` 用于主题绑定；同名字体族自动合并。完整 JSON 示例见 [CLI 工作流](./cli-usage.md)。注册失败时保留已上传资源，修正载荷后再提交，不自动删除文件；
+3. **管理字体族**：通过 `wp font family list/get` 查询已注册的自定义字体族；内置预设通过 workspace capabilities 查询。需要时可运行 `wp font family rename <family_id> --name <new_name>`；移动 face 时不能移走主题所绑定族的最后一个可用文件，应先调整主题绑定；
+4. **绑定与消费**：主题使用 family_id，页面优先使用 `font-heading`、`font-body`、`font-code`。非主题字体使用真实字体资源逻辑名，例如 `useAssetFontFamily('custom-sans')`，不得传 family_id。静态资源名字面量便于平台收集预览与构建依赖；具体 import 从 Runtime Kit 查询。不要手写 `@font-face` 或硬编码字体文件 URL。
 
 ## 样式和项目配置
 

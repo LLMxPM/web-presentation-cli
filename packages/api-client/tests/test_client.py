@@ -281,11 +281,13 @@ def test_download_file_streams_to_destination_and_returns_local_hash(tmp_path) -
 
     client = _mock_transport_client(handler)
     destination = tmp_path / "nested" / "artifact.zip"
-    _headers, size, digest = client.download_file("/projects/1/build-jobs/2/artifact", destination)
+    headers, size, digest = client.download_file("/projects/1/build-jobs/2/artifact", destination)
 
     assert destination.read_bytes() == payload
     assert size == len(payload)
     assert digest == hashlib.sha256(payload).hexdigest()
+    assert headers["content-type"] == "application/zip"
+    assert "authorization" not in headers
     assert list(destination.parent.glob(".*.tmp.*")) == []
     client.close()
 
@@ -303,6 +305,23 @@ def test_download_file_error_response_does_not_create_destination(tmp_path) -> N
 
     assert exc_info.value.code == "BUILD_ARTIFACT_NOT_FOUND"
     assert not destination.exists()
+    client.close()
+
+
+def test_download_project_build_artifact_accepts_zip_response(tmp_path) -> None:
+    """真实下载入口应使用响应类型，正确保存 ZIP 并保留服务端长度头。"""
+
+    payload = b"PK\x03\x04zip-payload"
+    client = _mock_transport_client(lambda _: httpx.Response(
+        200, headers={"content-type": "application/zip", "content-length": str(len(payload))}, content=payload,
+    ))
+    destination = tmp_path / "artifact.zip"
+    headers, size, _digest = client.download_project_build_artifact(1, 2, destination)
+
+    assert destination.read_bytes() == payload
+    assert size == len(payload)
+    assert headers["content-length"] == str(len(payload))
+    assert list(tmp_path.glob(".*.download.*")) == []
     client.close()
 
 

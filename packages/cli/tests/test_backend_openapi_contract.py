@@ -8,6 +8,7 @@ import pytest
 
 from wp.cli import main
 from wp.openapi_contracts import validate_registered_contracts
+from wp.output_fields import FONT_FACE_FIELDS
 
 
 def test_current_backend_contract():
@@ -19,4 +20,8 @@ def test_current_backend_contract():
     result = subprocess.run(['uv', 'run', '--project', str(backend), 'python', '-c',
                              'import json; from app.main import app; print(json.dumps(app.openapi()))'],
                             cwd=backend, capture_output=True, text=True, encoding='utf-8', check=True, timeout=60)
-    validate_registered_contracts(main, json.loads(result.stdout))
+    document = json.loads(result.stdout)
+    validate_registered_contracts(main, document)
+    # 响应字段也必须来自真实契约，避免 Mock 与投影同时使用错误字段而假绿。
+    response_fields = document['components']['schemas']['WorkspaceFontConfigResponse']['properties']
+    assert set(FONT_FACE_FIELDS) <= response_fields.keys()

@@ -20,7 +20,7 @@ def test_font_list_cmd_table_and_json() -> None:
                 "id": 1,
                 "workspace_id": 1,
                 "family_id": 10,
-                "family_name": "SourceHanSans",
+                "font_family": "SourceHanSans",
                 "asset_id": 100,
                 "asset_name": "source_han.woff2",
                 "font_format": "woff2",
@@ -46,7 +46,8 @@ def test_font_list_cmd_table_and_json() -> None:
         json_res = CliRunner().invoke(main, ["--json", "font", "list"])
         assert json_res.exit_code == 0, json_res.output
         data = json.loads(json_res.output)
-        assert data["items"][0]["family_name"] == "SourceHanSans"
+        assert data["items"][0]["font_family"] == "SourceHanSans"
+        assert "family_name" not in data["items"][0]
         assert data["items"][0]["asset_id"] == 100
 
 
@@ -57,7 +58,7 @@ def test_font_get_cmd_table_and_json() -> None:
         "id": 2,
         "workspace_id": 1,
         "family_id": 20,
-        "family_name": "CustomSans",
+        "font_family": "CustomSans",
         "asset_id": 102,
         "asset_name": "custom.woff2",
         "font_format": "woff2",
@@ -81,6 +82,7 @@ def test_font_get_cmd_table_and_json() -> None:
     data = json.loads(json_res.output)
     assert data["id"] == 2
     assert data["font_weight"] == "700"
+    assert data["font_family"] == "CustomSans"
 
 
 def test_font_register_cmd(tmp_path: Path) -> None:
@@ -89,7 +91,7 @@ def test_font_register_cmd(tmp_path: Path) -> None:
     fake_client.register_font.return_value = {
         "id": 3,
         "family_id": 30,
-        "family_name": "HeadlineFont",
+        "font_family": "HeadlineFont",
         "asset_id": 105,
         "status": "active",
     }
@@ -97,7 +99,7 @@ def test_font_register_cmd(tmp_path: Path) -> None:
     payload = {
         "asset_id": 105,
         "family_name": "HeadlineFont",
-        "font_weight": "bold",
+        "font_weight": "700",
     }
     payload_file = tmp_path / "register_font.json"
     payload_file.write_text(json.dumps(payload), encoding="utf-8")
@@ -120,6 +122,7 @@ def test_font_register_cmd(tmp_path: Path) -> None:
     fake_client.register_font.assert_called_once_with(payload)
     data = json.loads(res.output)
     assert data["id"] == 3
+    assert data["font_family"] == "HeadlineFont"
 
 
 def test_font_update_cmd(tmp_path: Path) -> None:
@@ -128,7 +131,7 @@ def test_font_update_cmd(tmp_path: Path) -> None:
     fake_client.update_font.return_value = {
         "id": 4,
         "family_id": 30,
-        "family_name": "HeadlineFontNew",
+        "font_family": "HeadlineFontNew",
         "status": "active",
     }
 
@@ -155,6 +158,7 @@ def test_font_update_cmd(tmp_path: Path) -> None:
     fake_client.update_font.assert_called_once_with(4, payload)
     data = json.loads(res.output)
     assert data["id"] == 4
+    assert data["font_family"] == "HeadlineFontNew"
 
 
 def test_font_family_list_cmd() -> None:

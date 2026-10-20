@@ -44,7 +44,7 @@ def font_list_cmd(ctx: click.Context, page: int, page_size: int, keyword: str | 
         rows = [
             [
                 item.get("id"),
-                item.get("family_name", "-"),
+                item.get("font_family", "-"),
                 item.get("asset_id", "-"),
                 item.get("font_format", "-"),
                 item.get("font_weight", "-"),
@@ -73,7 +73,7 @@ def font_get_cmd(ctx: click.Context, font_id: int) -> None:
 
         rows = [
             ["ID", str(res.get("id"))],
-            ["所属族名", str(res.get("family_name") or "-")],
+            ["所属族名", str(res.get("font_family") or "-")],
             ["字体族 ID", str(res.get("family_id") or "-")],
             ["资产 ID", str(res.get("asset_id") or "-")],
             ["资产名称", str(res.get("asset_name") or "-")],
