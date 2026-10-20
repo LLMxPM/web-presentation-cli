@@ -132,6 +132,8 @@ CLI 通过本地 Profile 配置 Backend 地址、PAT 和默认工作空间。对
 
 2026-10-05 已在 `oauth` 开发分支建立 [CLI OAuth 实施计划](docs/oauth-implementation-plan.md)，涵盖浏览器授权、凭证保存、并发刷新和跨仓验收。当前登录仍使用 PAT，OAuth 默认登录尚未实现。
 
+2026-10-20 已在 `feature/cli-font-theme` 分支建立 [CLI 字体与主题配置实施规划](docs/font-theme/implementation-plan.md)及[工作包清单](docs/font-theme/work-packages/README.md)，覆盖字体注册/字体族命令、主题图片与字体配置、Skill 和安装包验证；当前为待实施，未改变现有命令与版本。
+
 ## 边界
 
 1. Backend 是权限、工作空间隔离、业务校验和异步任务状态的最终事实源；API 语义以主仓 [External Agent API v1 契约](https://github.com/LLMxPM/web-presentation/blob/dev/docs/developer/reference/external-agent-api.md) 为准。
