@@ -1,4 +1,4 @@
-"""文件功能：提供 Runtime Kit 能力目录和工作空间字体目录命令。"""
+"""文件功能：提供 Runtime Kit 能力目录命令与字体目录兼容导出。"""
 
 from __future__ import annotations
 
@@ -6,6 +6,7 @@ import click
 
 from wp.client import ApiClientError
 from wp.commands.common import get_client, handle_api_error, output_result
+from wp.commands.font import font_group
 from wp.openapi_help import contract, openapi_command
 
 
@@ -63,23 +64,4 @@ def runtime_kit_get_cmd(ctx: click.Context, item: str) -> None:
         handle_api_error("获取 Runtime Kit 能力失败", err)
 
 
-@click.group("font")
-def font_group() -> None:
-    """工作空间注册字体目录。"""
-
-
-@openapi_command(font_group, "list", contract("GET", "/api/v1/fonts"))
-@click.option("--page", default=1, type=int, show_default=True, help="结果页码")
-@click.option("--page-size", default=50, type=int, show_default=True, help="每页返回数量")
-@click.option("--keyword", help="按字体名称或逻辑名搜索")
-@click.pass_context
-def font_list_cmd(ctx: click.Context, page: int, page_size: int, keyword: str | None) -> None:
-    """查询工作空间注册字体。"""
-
-    params = {"page": page, "page_size": page_size}
-    if keyword:
-        params["keyword"] = keyword
-    try:
-        output_result(ctx, get_client(ctx).list_fonts(params=params))
-    except ApiClientError as err:
-        handle_api_error("获取字体列表失败", err)
+__all__ = ["font_group", "runtime_kit_group"]

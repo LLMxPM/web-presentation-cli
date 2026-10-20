@@ -235,3 +235,28 @@ PREVIEW_FIELDS = (
     "asset_id",
     "asset_name",
 )
+
+FONT_FACE_FIELDS = (
+    "id",
+    "workspace_id",
+    "family_id",
+    "family_name",
+    "asset_id",
+    "asset_name",
+    "font_format",
+    "font_weight",
+    "font_style",
+    "font_display",
+    "status",
+    "created_at",
+    "updated_at",
+)
+
+FONT_FAMILY_FIELDS = (
+    "id",
+    "workspace_id",
+    "name",
+    "faces",
+    "created_at",
+    "updated_at",
+)

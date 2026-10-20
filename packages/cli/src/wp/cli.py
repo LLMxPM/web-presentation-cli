@@ -8,7 +8,8 @@ from wp import __version__
 from wp.commands.asset import asset_group
 from wp.commands.auth import login_cmd, logout_cmd, whoami_cmd
 from wp.commands.component import component_group
-from wp.commands.catalog import font_group, runtime_kit_group
+from wp.commands.catalog import runtime_kit_group
+from wp.commands.font import font_group
 from wp.commands.doctor import doctor_cmd
 from wp.commands.job import job_group
 from wp.commands.page import page_group

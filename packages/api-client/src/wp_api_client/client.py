@@ -179,6 +179,36 @@ class ApiClient:
 
         return self.get("/fonts", params=params)
 
+    def get_font(self, font_id: int) -> dict[str, Any]:
+        """读取单个字体注册项详情。"""
+
+        return self.get(f"/fonts/{font_id}")
+
+    def register_font(self, payload: Mapping[str, Any], *, idempotency_key: str | None = None) -> dict[str, Any]:
+        """注册字体资源为字体项。"""
+
+        return self.post("/fonts", json_data=dict(payload), idempotency_key=idempotency_key)
+
+    def update_font(self, font_id: int, payload: Mapping[str, Any], *, idempotency_key: str | None = None) -> dict[str, Any]:
+        """更新字体配置或所属族。"""
+
+        return self.patch(f"/fonts/{font_id}", json_data=dict(payload), idempotency_key=idempotency_key)
+
+    def list_font_families(self, params: Mapping[str, Any] | None = None) -> Any:
+        """读取当前工作空间字体族列表。"""
+
+        return self.get("/font-families", params=params)
+
+    def get_font_family(self, family_id: int) -> dict[str, Any]:
+        """读取单个字体族详情及关联 Face 列表。"""
+
+        return self.get(f"/font-families/{family_id}")
+
+    def rename_font_family(self, family_id: int, name: str, *, idempotency_key: str | None = None) -> dict[str, Any]:
+        """重命名字体族。"""
+
+        return self.patch(f"/font-families/{family_id}", json_data={"name": name}, idempotency_key=idempotency_key)
+
     def validate_entity(self, payload: Mapping[str, Any]) -> dict[str, Any]:
         """调用页面/组件实体候选内容校验接口。"""
 

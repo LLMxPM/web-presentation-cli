@@ -10,6 +10,8 @@ from wp.output_fields import (
     ASSET_LIST_FIELDS,
     COMPONENT_DETAIL_FIELDS,
     COMPONENT_LIST_FIELDS,
+    FONT_FACE_FIELDS,
+    FONT_FAMILY_FIELDS,
     PAGE_DETAIL_FIELDS,
     PAGE_LIST_FIELDS,
     PAGE_SOURCE_FIELDS,
@@ -127,6 +129,14 @@ def project_response(value: Any, profile: str, *, detail: bool = False) -> Any:
         return _pick(value, fields)
     if profile == "preview":
         return _pick(value, PREVIEW_FIELDS) if isinstance(value, Mapping) else value
+    if profile == "font_face":
+        if isinstance(value, Mapping) and isinstance(value.get("items"), list):
+            return _project_collection(value, FONT_FACE_FIELDS)
+        return _pick(value, FONT_FACE_FIELDS) if isinstance(value, Mapping) else value
+    if profile == "font_family":
+        if isinstance(value, Mapping) and isinstance(value.get("items"), list):
+            return _project_collection(value, FONT_FAMILY_FIELDS)
+        return _pick(value, FONT_FAMILY_FIELDS) if isinstance(value, Mapping) else value
     if profile == "archive":
         if not isinstance(value, Mapping) or not (
             "archived_ids" in value or "failed_ids" in value
