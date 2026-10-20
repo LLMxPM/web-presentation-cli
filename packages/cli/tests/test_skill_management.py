@@ -72,12 +72,12 @@ def test_plan_targets_rejects_invalid_scope(tmp_path: Path) -> None:
 
 
 def test_bundled_skill_minimum_cli_covers_route_add_and_candidate_inference() -> None:
-    """Skill 使用 0.3.4 新增的路由追加与候选模式推断，不能声明兼容旧版。"""
+    """Skill 使用 0.3.5 新增的字体与主题配置命令，不能声明兼容旧版。"""
 
     skill = get_bundled_skill("web-presentation")
-    assert version_satisfies("0.3.2", skill.requires_cli) is False
     assert version_satisfies("0.3.3", skill.requires_cli) is False
-    assert version_satisfies("0.3.4", skill.requires_cli) is True
+    assert version_satisfies("0.3.4", skill.requires_cli) is False
+    assert version_satisfies("0.3.5", skill.requires_cli) is True
 
 
 def test_install_status_and_uninstall_lifecycle(tmp_path: Path) -> None:

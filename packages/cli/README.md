@@ -102,7 +102,7 @@ wp --raw project list
 
 Skill 与 CLI 一起发布，但使用独立版本。`wp skill status` 会识别缺失、过期、较新、不兼容、用户修改和未受管理等状态；普通升级不会覆盖用户修改，`--force` 会先保留同级备份。CLI 升级不会隐式改写已安装 Skill，需要重新运行 `wp skill install` 完成同步。若此前版本曾向 `.claude/skills`、`.mimocode/skills`、`~/.config/mimocode/skills` 或 `.workbuddy/skills` 安装过副本，升级后请手动移除这些旧目录，统一使用 `.agents/skills`。
 
-当前源码版本关系：CLI `0.3.4` 内置 `web-presentation` Skill `1.4.2`，Skill 兼容范围为 `>=0.3.4,<0.4.0`。升级 CLI 后需重新运行 `wp skill install` 同步原安装范围；Doctor 会展示安装原因、实际版本和修复命令。构建时会把版本关系与规范化内容 SHA-256 写入 manifest。
+当前源码版本关系：CLI `0.3.5` 内置 `web-presentation` Skill `1.4.3`，Skill 兼容范围为 `>=0.3.5,<0.4.0`。升级 CLI 后需重新运行 `wp skill install` 同步原安装范围；Doctor 会展示安装原因、实际版本和修复命令。构建时会把版本关系与规范化内容 SHA-256 写入 manifest。
 
 `wp skill export` 生成的标准 ZIP 可用于支持本地上传的产品；CLI 不从 URL 或第三方仓库下载 Skill。
 
@@ -149,6 +149,13 @@ wp job wait <job_id>
 
 写入命令支持 `--idempotency-key <key>`；网络超时后需要重放同一业务请求时复用原 key，不要把同一个 key 用于不同请求。
 
+
+### 0.3.5 行为变更
+
+- 新增字体管理命令：`wp font list/get/register/update`，支持按字体面（Font Face）查询、注册已上传字体资源、修改显示名称/粗细/样式；`wp font family list/get/rename`，支持查询预设系统字体族与工作空间自定义字体族，重命名族显示名称。
+- 增强主题配置支持：`wp theme create` 与 `wp theme update` 支持通过 `--payload-file` 传入品牌 Logo、反色 Logo、项目图标及标题/正文/代码三槽字体槽位（preset 与 family_id）；保持省略字段与显式 null 清空语义的无损传递。
+- `wp theme get` 详情输出表格增强，补充品牌 Logo、反色 Logo、项目图标及各槽位字体来源。
+- 内置 Skill `1.4.3` 同步字体注册、字体族管理与主题设计字段的配置工作流。
 
 ### 0.3.4 行为变更
 

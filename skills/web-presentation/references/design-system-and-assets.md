@@ -208,15 +208,25 @@ wp asset upload .tmp/web-presentation/hero-image.png --type image --name hero-im
 
 ## 主题
 
-主题负责共享视觉语义和色板。多页统一视觉时优先使用主题类，不要在每页硬编码品牌色；现有主题与用户目标不匹配时再复制或创建主题。
+主题负责共享视觉语义、色板、Logo 与字体绑定。多页统一视觉时优先使用主题类，不要在每页硬编码品牌色；现有主题与用户目标不匹配时再复制或创建主题。
 
 - 创建主题必须指定稳定、未占用的 `key`；key 创建后不可修改。
-- 主题维护只使用 CLI 公开的名称、说明和色板字段；不要猜测或写入 Logo、字体、字体族 ID。
+- 主题维护支持通过 `--payload-file` 传入名称、说明、色板（`palette`）、图片（`logo_asset_id`、`invert_logo_asset_id`、`project_icon_asset_id`）及标题/正文/代码三槽字体配置。
+- 图片槽位必须传入当前工作空间 active 状态的真实资源 ID；`project_icon_asset_id` 必须是 `asset_type=icon` 资源；显式传入 `null` 表示清空，省略该键表示保持现状。
+- 字体槽位通过 `heading_font_family_id` / `heading_font_preset`、`body_font_family_id` / `body_font_preset`、`code_font_family_id` / `code_font_preset` 配置：
+  - 若绑定工作空间自定义注册的字体族，必须传入 `family_id`（通过 `wp font family list` 获取），严禁混传 `asset_id` 或 `font_id`；
+  - 若使用预设系统字体族，传入对应 preset（如 `sans`、`serif`、`mono`、`system-ui`）；
+  - 清空自定义字体绑定时将对应的 `family_id` 显式设为 `null`；省略键表示保持现状。
 - 主题 palette 使用公开的 `text`、`background.default/invert`、`border`、`link` 和 `accent` 结构；不要把 Tailwind 类名、`background-subtle` 或 `tertiary` 当成主题 Schema 字段。
 
 ## 字体
 
-先 `wp font list` 查询已注册字体。主题字体优先使用 `font-heading`、`font-body`、`font-code`；非主题字体必须是工作空间真实注册并下发的字体逻辑名，用 `useAssetFontFamily`，不要在页面 CSS 中写 `@font-face` 或硬编码字体文件 URL。
+字体管理包含字体面（Font Face）与字体族（Font Family），形成规范生命周期：
+
+1. **上传字体文件**：运行 `wp asset upload <file> --type font --name <name>` 获得资源 `asset_id`。注意上传资源仅是二进制素材，不等于已注册字体；
+2. **注册字体面**：运行 `wp font register <asset_id> --family-name <name> --display-name <label>` 注册字体面并关联到指定字体族（自动创建新族或归入同名已有族），获得 `font_id` 与 `family_id`。支持通过 `--weight` 与 `--style` 区分字重和字形；
+3. **管理字体族**：通过 `wp font family list` 查看工作空间预设系统字体族与自定义注册字体族；需要时可通过 `wp font family rename <family_id> --name <new_name>` 调整族展示名称；
+4. **绑定与消费**：将 `family_id` 绑定至主题对应字体槽位；页面中优先使用 `font-heading`、`font-body`、`font-code` 主题语义类；页面或组件消费非主题自定义字体时使用 `useAssetFontFamily(family_id)`。切勿在页面 CSS 中手写 `@font-face` 或硬编码字体文件 URL。
 
 ## 样式和项目配置
 

@@ -105,6 +105,42 @@ wp --json project audio clear <project_id> --idempotency-key <key>
 
 旁白与交互音效的页面写法、能力约束和验证边界见 [资源与设计系统](./design-system-and-assets.md)；CLI 只能写入配置和源码，不能证明声音已播放。
 
+## 字体注册与主题设计配置
+
+字体管理按“上传资源 → 注册字体面 → 查询/管理字体族 → 绑定主题”流转：
+
+```bash
+# 1. 查询已上传字体资产或上传新字体
+wp --json asset list --type font
+wp asset upload .tmp/web-presentation/CustomSans-Regular.ttf --type font --name custom-sans --idempotency-key upload-font-sans
+
+# 2. 注册字体面并关联字体族
+wp --json font register <asset_id> --family-name "Custom Sans" --display-name "Custom Sans Regular" --weight 400 --style normal --idempotency-key reg-sans-regular
+
+# 3. 查看字体面与字体族
+wp --json font list
+wp --json font family list
+
+# 4. 主题设计配置（通过 payload 文件传入图片与字体槽位）
+wp theme update <theme_id> --payload-file .tmp/web-presentation/theme-config.json --idempotency-key update-theme-config
+```
+
+`theme-config.json` 示例：
+
+```json
+{
+  "logo_asset_id": 12,
+  "invert_logo_asset_id": 13,
+  "project_icon_asset_id": 14,
+  "heading_font_family_id": 5,
+  "body_font_preset": "sans",
+  "code_font_preset": "mono"
+}
+```
+
+- 自定义字体必须传入 `family_id`，不可传 `asset_id` 或 `font_id`；
+- 图片槽位与字体槽位传入 `null` 表示显式清空，省略键表示保持现状不变。
+
 ## CLI 与 Skill 版本诊断
 
 `wp doctor` 会显示 Skill 警告原因、安装版本、内置版本、完整路径及对应范围的修复命令。升级 CLI 不会自动更新已安装 Skill；出现 `outdated` 时按原范围运行 `wp skill install --scope global` 或 `--scope project`，再用 `wp --json skill status --scope <scope>` 确认 `up_to_date`。自定义、未受管理或版本更高的目录先检查并保留需要的内容，不直接强制覆盖。

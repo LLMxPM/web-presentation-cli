@@ -12,9 +12,9 @@ Web Presentation 的核心边界是“当前工作空间”。所有资源归属
 | 页面 | 项目内实际内容页 | 保存 Vue SFC、标题/摘要/备注、当前版本和截图信息 | `page get/source/version/dependencies` |
 | 工作空间组件 | 跨页面复用的 Vue 代码资产 | 草稿和发布版本分开；页面应引用已发布版本 | `component get/edit/publish/version/dependencies` |
 | 资源 | 图片、视频、音频、三维模型、图标、SVG、Draw.io、Mermaid、Chart、Formula 和字体等 | 通过稳定 `name` 引用；`render_type` 决定 Runtime 渲染方式；三维资源带格式、场景、相机和动画摘要；音频不可文本编辑 | `asset list/get/content/download/replace` |
-| 主题 | 共享视觉语义和色板 | key 创建后不可改；外部主题维护只涉及公开名称、说明和色板字段 | `theme list/get/create/update/copy` |
+| 主题 | 共享视觉语义、色板与设计配置 | key 创建后不可改；支持配置色板、Logo/图标图片及三槽字体绑定 | `theme list/get/create/update/copy` |
 | 样式 | 可复用的项目展示配置模板 | 应用到项目时复制成独立快照，后续不实时继承 | `style list/get/create/update/copy` |
-| 字体 | 注册的字体族/字体文件声明 | 只读查询；先有资源，再由平台注册/下发 | `font list` |
+| 字体 | 注册的字体面与字体族 | 支持字体面注册/修改与字体族管理，绑定到主题或组件 | `font list/get/register/update`、`font family list/get/rename` |
 | Runtime Kit | 版本化公开运行时能力目录 | 不是工作空间资产，也不是通用 UI 库；只用真实返回的 `.vN` import path | `runtime-kit list/get` |
 | Mutation Job | 页面/组件重任务的持久化执行记录 | 状态是 `pending/running/succeeded/failed/canceled` | `job get/wait/cancel/retry` |
 | Preview Artifact | 项目或页面的短期交互预览 | 必须基于成功写入后的最新对象创建；`preview_url` 不代表正式发布 | `preview get` |

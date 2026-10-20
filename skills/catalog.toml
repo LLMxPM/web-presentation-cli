@@ -2,6 +2,6 @@ schema_version = 1
 
 [[skills]]
 name = "web-presentation"
-version = "1.4.2"
+version = "1.4.3"
 path = "web-presentation"
-requires_cli = ">=0.3.4,<0.4.0"
+requires_cli = ">=0.3.5,<0.4.0"

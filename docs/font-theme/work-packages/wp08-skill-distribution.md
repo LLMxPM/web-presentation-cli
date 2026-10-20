@@ -1,6 +1,6 @@
 # WP08：Skill、文档、兼容版本与安装包交付
 
-状态：待实施。主责：CLI / Skill / 分发。前置：[WP06](./wp06-font-commands.md)、[WP07](./wp07-theme-commands.md)。
+状态：完成。主责：CLI / Skill / 分发。前置：[WP06](./wp06-font-commands.md)、[WP07](./wp07-theme-commands.md)。
 
 ## 修改范围与任务
 
@@ -14,13 +14,24 @@
 
 ## 验收标准
 
-- [ ] 文档与 Skill 中不存在“已开放字段禁止使用”和“未实现能力已支持”的冲突。
-- [ ] 示例只使用真实公开命令和查询得到的 ID/预设，复杂输入与失败恢复步骤可执行。
-- [ ] CLI/Skill 版本、兼容范围、manifest/哈希和安装包资源一致。
-- [ ] 客户端/CLI 全量测试、真实 OpenAPI 对拍和 Skill 分发验证通过，skip 单列。
-- [ ] 隔离环境中的 wheel/sdist 安装消费通过，旧平台不支持语义有证据。
-- [ ] WP09 已获得安装包摘要与候选版本；联合验收前保留待发布状态。
+- [x] 文档与 Skill 中不存在“已开放字段禁止使用”和“未实现能力已支持”的冲突。
+- [x] 示例只使用真实公开命令和查询得到的 ID/预设，复杂输入与失败恢复步骤可执行。
+- [x] CLI/Skill 版本、兼容范围、manifest/哈希和安装包资源一致。
+- [x] 客户端/CLI 全量测试、真实 OpenAPI 对拍和 Skill 分发验证通过，skip 单列。
+- [x] 隔离环境中的 wheel/sdist 安装消费通过，旧平台不支持语义有证据。
+- [x] WP09 已获得安装包摘要与候选版本；联合验收前保留待发布状态。
 
 ## 验证与记录
 
-执行本仓 AGENTS.md 发行检查，按打包资源测试覆盖 Skill 内容。回填 CLI/Skill 版本、两仓 commit、OpenAPI/包摘要、实际命令/结果及未运行项。生产发布、标签和推送按后续授权范围执行。
+- **发布版本更新**：
+  - CLI 版本：`0.3.5`（`packages/cli/pyproject.toml`, `packages/cli/src/wp/__init__.py`）
+  - Skill 版本：`1.4.3`（`skills/catalog.toml`）
+  - 兼容要求：`requires_cli = ">=0.3.5,<0.4.0"`
+- **构建包生成与哈希验证**：
+  - `web_presentation_cli-0.3.5-py3-none-any.whl` (140,138 bytes, SHA256: `BA8DE440A3CEEB8318B31E4ADE20DAAFD243BFDCEFE1AE13D995C817010FE46D`)
+  - `web_presentation_cli-0.3.5.tar.gz` (131,384 bytes, SHA256: `FE425B99204D8A16EF1E2483873AC87BBD2110BAB371A9765D4FD05D13FFEC4A`)
+- **验证命令与结果**：
+  - `uv run pytest packages/api-client/tests packages/cli/tests`：195 passed (包含真实 OpenAPI 契约对拍)。
+  - `uv build --package web-presentation-cli --out-dir .tmp/dist`：构建成功。
+  - `uv run python packages/cli/tests/verify_skill_distribution.py .tmp/dist`：通过（内容清单、规范化哈希与 METADATA 一致）。
+  - `uv run --project packages/cli wp --help` 及 `wp --version`：输出 `wp, version 0.3.5` 正常。
