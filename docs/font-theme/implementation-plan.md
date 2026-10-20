@@ -1,6 +1,6 @@
 # CLI 字体管理与主题配置实施规划
 
-规划日期：2026-10-20。状态：规划已建立，WP06–WP08 待实施。本轮只创建分支和规划，不新增命令或发布版本。
+规划日期：2026-10-20。状态：WP06–WP08 全部完成，配合主仓完成 WP09 端到端联合验收（M0~M3 全部达成）。
 
 开发分支：`feature/cli-font-theme`，从 `master` / `66d793147a968cf8c2ef00f2253cfa8693a9f0d9` 创建。评估 CLI 版本 `0.3.4`、Skill `1.4.2`；主仓评估基线为 `dev` / `12d2d2564e31c6f5cd7a9c0755c5f8f54a22a5a4`。这些是分析基线，发布时另行固定已验收的版本。
 
@@ -86,9 +86,30 @@ WP08 更新根 README、CLI README、能力矩阵、设计系统与平台模型�
 
 交付记录包含双方完整 commit、OpenAPI 摘要、CLI/Skill 版本、安装包摘要、测试命令/结果和 skip/未运行项。平台契约先交付，再发布依赖它的 CLI；本轮不推送、打标签或发布。
 
-## 6. 本轮规划记录
+## 6. 实施完成与联合验收交付记录
 
-- 已从 master 创建并切换 `feature/cli-font-theme`，遵循用户指定前缀。
-- 已建立本仓 WP06–WP08 及主仓交接关系，状态均为待实施。
-- 已运行：本轮 6 份新增/修改 Markdown 的只读相对链接与代码围栏检查、`git diff --check`，全部通过。主仓同批仓库检查 8 个测试文件、63 项通过，具体入口与环境限制见主仓规划记录。
-- 未运行：API Client/CLI 业务测试、跨仓 OpenAPI 对拍、安装包构建/分发、真实注册/渲染/构建流程；本轮只改规划与导航，不代表新增能力验证通过。
+- **状态**：WP06–WP08 全部完成，配合主仓完成 WP09 端到端联合验收。
+- **CLI 仓 Git 提交**：
+  - `23ccbbc` docs: 建立 CLI 字体与主题配置实施规划与工作包
+  - `2fac29a` feat(font): 实现 CLI 字体与字体族管理命令及 OpenAPI 契约绑定 (WP06)
+  - `c659767` feat(theme): 增强 CLI 主题详情输出与创建/更新设计字段输入支持 (WP07)
+  - `f8af454` feat(skill): 更新字体与主题工作流规范，升级 CLI 与 Skill 分发版本 (WP08)
+- **主仓对应 Git 提交**：
+  - `31c2a80` docs: 建立 CLI 字体与主题配置实施规划与工作包
+  - `89c31de` docs(contract): 冻结字体与主题配置公共契约及共享样例 (WP01)
+  - `319fd69` feat(theme): 实现主题图片清空语义、真值表解析与引用校验 (WP02)
+  - `32d51fc` feat(font): 完善字体服务事务控制、单项查询与纯函数模块抽取 (WP03)
+  - `56eb28e` feat(font): 提供字体与字体族 External API v1 及能力发现 (WP04)
+  - `3636d92` feat(theme): 统一主题 External 创建与更新配置、真值表与幂等指纹 (WP05)
+  - `04ec9ab` docs(integration): 完成字体与主题端到端联合验收并归档交付记录 (WP09)
+- **版本与分发包**：
+  - CLI 版本：`0.3.5`，Skill 版本：`1.4.3`，兼容范围：`requires_cli = ">=0.3.5,<0.4.0"`
+  - `web_presentation_cli-0.3.5-py3-none-any.whl` (140,138 bytes, `BA8DE440A3CEEB8318B31E4ADE20DAAFD243BFDCEFE1AE13D995C817010FE46D`)
+  - `web_presentation_cli-0.3.5.tar.gz` (131,384 bytes, `FE425B99204D8A16EF1E2483873AC87BBD2110BAB371A9765D4FD05D13FFEC4A`)
+- **测试覆盖与验收**：
+  - `uv run pytest packages/api-client/tests packages/cli/tests`：195 passed（涵盖真实 Backend OpenAPI 契约对拍）。
+  - `uv run python packages/cli/tests/verify_skill_distribution.py .tmp/dist`：退出码 0，内置 manifest、哈希和 METADATA 校验完全通过。
+  - `uv run --project packages/cli wp --help` 及 `wp --version`：输出 `wp, version 0.3.5` 正常。
+- **未运行项**：
+  - 生产 PyPI 发布、Git 远程标签推送与线上环境部署，按后续人工授权执行。
+- **交付结论**：CLI 字体与主题管理能力全部交付，通过联合验收。
