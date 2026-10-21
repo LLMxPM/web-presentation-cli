@@ -27,6 +27,7 @@ Web Presentation 是面向 AI 的演示内容创作平台，不是单文件幻�
 - 创建或修改工作空间组件时，读 [组件规范](./references/component-standards.md)；涉及源码时同时读页面源码规范。
 - 页面或组件需要图片、音频、数学公式、数据图表、流程图、三维模型，或选择/维护图标、字体、主题、样式等输入时，读 [资源与设计系统](./references/design-system-and-assets.md)；即使没有现成资源，也要按内容选择 Runtime Kit 渲染能力。三维模型按“查询模型 → 读取渲染契约 → 配置视角”使用，只引用真实 `model3d` 资源名。音频先查 `wp workspace capabilities` 的 `slideshow.audio`，区分内容音频、页面旁白和交互音效后再写页面。
 - 处理候选校验、Mutation Job、截图、失败恢复或交付时，读 [校验与交付](./references/validation-and-delivery.md)。
+- 页面需要动画编排时，读 [Motion 创作](./references/motion-authoring.md)，先查询当前服务的 timeline 与 Runtime Kit；只在真实返回入口时使用资源 builder 和受控原生视觉。
 - 创建整套演示、编排页面顺序或调整目录时，读 [路由与导航](./references/route-and-navigation.md)，并执行页面生成流程中的多页交付步骤。
 - 需要进一步确认对象归属、配置快照、路由或依赖关系时，读 [平台资源模型](./references/platform-model.md)。
 
@@ -50,7 +51,7 @@ Web Presentation 是面向 AI 的演示内容创作平台，不是单文件幻�
 - 只引用真实查询得到的已发布组件、工作空间资源和带 `.vN` 的 Runtime Kit 路径。
 - 三维模型只引用当前工作空间 `asset_type=model3d` 的 active 资源，只支持自包含 GLB；使用前读取 Runtime Kit 的 `AssetModel` 当前契约。相机索引与显式位置/目标互斥，位置和目标必须成对，容器必须声明明确宽高。
 - 用户已提供本地 GLB 时，先使用 `wp asset upload --type model3d` 上传，再引用真实返回的 name；只有缺少可用模型文件时才请求用户补充，不编造模型名。
-- 当前三维展示是静态姿态，资源含动画数据不代表支持动画播放；截图复核时检查模型、材质、光照和视角是否真实呈现。
+- `AssetModel.v1` 展示静态姿态；只有当前服务明确开放 timeline 和 `AssetModel.v2`，且真实动作摘要 supported=true 时才能编排模型动作，见 Motion 创作。截图不能证明动态播放。
 - 替换三维资源前读取最新 `file_hash`；替换会同步更新当前与历史页面预览，独立构建保留当次构建的资源快照，不要为替换模型修改页面源码中的资源 `name`。
 - 音频只引用当前工作空间 `asset_type=audio` 的 active 资源，通过 `AssetAudio.v1` 传真实 `name`；内容音频使用 `purpose="content"`，页面源码不写 `autoplay`，旁白不得设置 `loop`。
 - 旁白与交互音效必须先查 `wp --json workspace capabilities` 的 `slideshow.audio`：`page_narration=false` 时不得使用 `purpose="narration"` 或向用户承诺自动旁白；`audio_cues=false` 时不得绑定 cue 或承诺音效。能力未开放时只做内容音频，或明确告知用户当前不支持。
