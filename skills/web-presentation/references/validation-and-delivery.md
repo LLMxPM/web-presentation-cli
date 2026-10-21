@@ -54,6 +54,18 @@ wp --json page screenshot <page_id> --screenshot-id <content_hash> --output .tmp
 
 `--screenshot-id` 只按页面范围内的内容 ID 下载已有截图，不刷新页面、不触发 `preview:run`；内容不存在时保留 404，不回退最新截图。历史内容接口不返回页面版本，输出中的 `version_no` 为 `null`，文件名也不要使用当前页面版本。
 
+需要固定页面中的某一时间轴状态时，使用异步时间轴截图：
+
+```bash
+wp --json page screenshot <page_id> --motion-timeline-id <timeline_id> \
+  --motion-label <at_label> [--motion-offset-ms <ms>] [--motion-visual-mode full|reduced] \
+  --target-version <version_no> --timeout 60 --idempotency-key <key> \
+  --output .tmp/web-presentation/shot/page-<page_id>-<label>.png
+wp --json page screenshot <page_id> --motion-timeline-id <timeline_id> --motion-at-ms <ms>
+```
+
+`--motion-label` 与 `--motion-at-ms` 必须二选一，`--motion-offset-ms` 只能搭配 label；时间轴 ID 必须来自页面实际声明的定义，不要猜测名称。命令先校验工作空间 `timeline.enabled` 与 `timeline.capture_snapshot`，能力未开启时返回 `TIMELINE_CAPTURE_CAPABILITY_MISSING` 且不创建任务；不要改用 latest 截图冒充指定状态。成功结果包含 `job_id`、`screenshot_id`、`version_no` 和 `applied_motion`，临时帧不会更新页面默认截图。`applied_motion` 只说明采样状态，静态帧不能证明声音已播放、动画在用户设备上流畅或 reduced 模式符合预期；这些仍需在真实预览或放映中人工观察。
+
 构建产物下载只适用于已知 `build_job_id` 的任务：
 
 ```bash
@@ -73,6 +85,8 @@ CLI 不能发起或查询构建任务；输出中的 `local_sha256` 只用于校
 - 空态、缺图、数据不足、错误提示和默认组件态是否仍然成立。
 
 三维模型的动画数据不代表支持动画播放，截图只验证当前静态姿态。替换三维资源文件后，当前与历史页面预览会同步更新，独立构建保留当次资源快照；应重新截图而不是沿用替换前的视觉结论。音频同理，截图不能证明声音已播放、旁白已自动启动或 cue 已发声；这些行为必须在用户手动操作的预览或放映中验证，并且遵守 `slideshow.audio` 能力开关。音频替换后重新截图确认播放器与布局，不要声称已完成听觉验收。
+
+页内时间轴同理：默认海报和指定时刻截图都只是静态证据，不能代替播放、暂停、定位与重播验收。修改放映配置时，`timeline_end` 仅在 capabilities 的 `advance_modes` 声明且 schema >= 3 时可用，`timeline_timeout_ms` 属于播放预算；能力缺失会以 `SLIDESHOW_TIMELINE_CAPABILITY_MISSING` 拒绝写入，不要自行降级为 `timer`。
 
 截图发现问题时优先对当前版本做最小结构化编辑；重新读取版本基线后再提交，不要以旧源码生成新 edits。
 

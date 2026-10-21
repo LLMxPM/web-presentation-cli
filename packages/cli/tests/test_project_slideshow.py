@@ -322,6 +322,84 @@ def test_project_slideshow_rejects_media_timeout_before_schema2(tmp_path: Path) 
     fake_client.patch.assert_not_called()
 
 
+TIMELINE_SLIDESHOW = {
+    "transition": {"effect": "fade", "duration_ms": 400},
+    "advance": {"mode": "timeline_end", "delay_ms": 5000, "timeline_timeout_ms": 120000},
+    "loop": False,
+    "auto_start": True,
+}
+
+TIMELINE_CAPABILITIES = {
+    "slideshow": {
+        "schema_version": 3,
+        "advance_modes": ["manual", "timer", "media_end", "timeline_end"],
+        "timeline_timeout_ms": {"min": 1000, "max": 3600000},
+    }
+}
+
+
+def test_project_slideshow_timeline_round_trip_checks_capabilities(tmp_path: Path) -> None:
+    """schema 3 且明确开放 timeline_end 时才写回时间轴预算。"""
+
+    fake_client = MagicMock()
+    fake_client.get.side_effect = [
+        {"id": 7, "workspace_id": 9},
+        TIMELINE_CAPABILITIES,
+    ]
+    fake_client.patch.return_value = {"slideshow": TIMELINE_SLIDESHOW}
+    slideshow_file = write_json(tmp_path, "slideshow.json", TIMELINE_SLIDESHOW)
+
+    with patch("wp.commands.project.get_client", return_value=fake_client):
+        result = CliRunner().invoke(
+            main, ["--json", "project", "slideshow", "update", "7", "--slideshow-file", str(slideshow_file)]
+        )
+
+    assert result.exit_code == 0, result.output
+    fake_client.get.assert_any_call("/workspaces/9/capabilities")
+    fake_client.patch.assert_called_once_with("/projects/7", json_data={"slideshow": TIMELINE_SLIDESHOW})
+
+
+def test_project_slideshow_rejects_closed_timeline_end(tmp_path: Path) -> None:
+    """schema 3 但能力未声明 timeline_end 时拒绝写入，不退化为 timer。"""
+
+    fake_client = MagicMock()
+    fake_client.get.side_effect = [
+        {"id": 7, "workspace_id": 9},
+        {"slideshow": {"schema_version": 3, "advance_modes": ["manual", "timer", "media_end"]}},
+    ]
+    slideshow_file = write_json(tmp_path, "slideshow.json", TIMELINE_SLIDESHOW)
+
+    with patch("wp.commands.project.get_client", return_value=fake_client):
+        result = CliRunner().invoke(
+            main, ["--json", "project", "slideshow", "update", "7", "--slideshow-file", str(slideshow_file)]
+        )
+
+    assert result.exit_code != 0
+    assert "SLIDESHOW_TIMELINE_CAPABILITY_MISSING" in result.output
+    fake_client.patch.assert_not_called()
+
+
+def test_project_slideshow_rejects_timeline_timeout_before_schema3(tmp_path: Path) -> None:
+    """schema 2 服务不接收 timeline_timeout_ms。"""
+
+    fake_client = MagicMock()
+    fake_client.get.side_effect = [
+        {"id": 7, "workspace_id": 9},
+        {"slideshow": {"schema_version": 2, "advance_modes": ["manual", "timer", "media_end"]}},
+    ]
+    payload = {**SLIDESHOW, "advance": {"mode": "timer", "delay_ms": 5000, "timeline_timeout_ms": 120000}}
+    slideshow_file = write_json(tmp_path, "slideshow.json", payload)
+
+    with patch("wp.commands.project.get_client", return_value=fake_client):
+        result = CliRunner().invoke(
+            main, ["--json", "project", "slideshow", "update", "7", "--slideshow-file", str(slideshow_file)]
+        )
+
+    assert result.exit_code != 0
+    assert "SLIDESHOW_TIMELINE_CAPABILITY_MISSING" in result.output
+    fake_client.patch.assert_not_called()
+
+
 def test_project_slideshow_rejects_unknown_advance_mode(tmp_path: Path) -> None:
     """未知模式明确失败，不静默改成 timer。"""
 

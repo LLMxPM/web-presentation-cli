@@ -32,8 +32,9 @@ from wp.commands.project_route_tree import (
     require_slideshow_route_tree,
 )
 from wp.commands.project_slideshow import (
+    EMPTY_ADVANCE_REQUIREMENTS,
     SLIDESHOW_CAPABILITY_MISSING,
-    require_slideshow_media_capability,
+    require_slideshow_capability,
     validate_advance_config,
 )
 
@@ -244,14 +245,9 @@ def update_project_slideshow_cmd(ctx: click.Context, project_id: int, slideshow_
         slideshow = payload.get("slideshow", payload)
         if not isinstance(slideshow, dict):
             raise click.ClickException("放映配置必须是完整 JSON 对象。")
-        needs_media_end, needs_media_timeout = validate_advance_config(slideshow.get("advance"), "slideshow")
+        requirements = validate_advance_config(slideshow.get("advance"), "slideshow")
         client = get_client(ctx)
-        require_slideshow_media_capability(
-            client,
-            project_id,
-            needs_media_end=needs_media_end,
-            needs_media_timeout=needs_media_timeout,
-        )
+        require_slideshow_capability(client, project_id, requirements)
         updated = client.patch(f"/projects/{project_id}", json_data={"slideshow": slideshow})
         if "slideshow" not in updated:
             raise click.ClickException(
@@ -328,20 +324,12 @@ def update_project_route_cmd(ctx: click.Context, project_id: int, edit_file: str
         require_slideshow_route_tree(tree)
         payload = build_route_tree_write_payload(tree)
         edits = require_array(read_json_file(edit_file, label="路由编辑"), label="路由编辑")
-        needs_media_end = False
-        needs_media_timeout = False
+        requirements = EMPTY_ADVANCE_REQUIREMENTS
         for index, edit in enumerate(edits):
             if not isinstance(edit, dict) or "advance" not in edit:
                 continue
-            edit_media_end, edit_media_timeout = validate_advance_config(edit.get("advance"), f"编辑[{index}]")
-            needs_media_end = needs_media_end or edit_media_end
-            needs_media_timeout = needs_media_timeout or edit_media_timeout
-        require_slideshow_media_capability(
-            client,
-            project_id,
-            needs_media_end=needs_media_end,
-            needs_media_timeout=needs_media_timeout,
-        )
+            requirements = requirements.merge(validate_advance_config(edit.get("advance"), f"编辑[{index}]"))
+        require_slideshow_capability(client, project_id, requirements)
         apply_route_edits(payload, edits)
         output_result(ctx, client.put(f"/projects/{project_id}/route-tree", json_data=payload))
     except ApiClientError as err:

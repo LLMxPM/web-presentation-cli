@@ -12,7 +12,7 @@
 | 动态请求契约 | 目标叶子命令的 `--help` 从 Backend OpenAPI 展示 |
 | Runtime Kit | `wp runtime-kit list`, `wp runtime-kit get <item>` |
 | 字体 | `wp font list/get/register/update`，`wp font family list/get/rename`；注册/更新使用 `--payload-file`，预设从 `workspace capabilities` 查询 |
-| 项目 | `list`, `get`, `create`, `update`, `archive`, `configuration get/update`, `route get/replace`, `apply-style`, `build-assets update` |
+| 项目 | `list`, `get`, `create`, `update`, `archive`, `configuration get/update`, `slideshow get/update`, `route get/add/update/replace`, `apply-style`, `build-assets update` |
 | 页面 | `list`, `get`, `create`, `copy`, `update`, `source`, `edit`, `version list/get`, `dependencies`, `validate`, `screenshot`, `archive` |
 | 组件 | `list`, `get`, `create`, `update`, `edit`, `version list/get`, `dependencies`, `validate`, `publish`, `archive` |
 | 资源 | `list`, `get`, `create`, `upload`, `replace`, `download`, `update`, `copy`, `content get/update/preview`, `tags list`, `archive`；`--type` 支持 `model3d` |
@@ -51,6 +51,24 @@ wp asset download 42 --output .tmp/web-presentation/product.glb
 ```
 
 `--json asset list` 为 `model3d` 项附带 `format`、`scene_count`、`camera_count` 和 `animation_count` 摘要，完整分析元数据仍只在 `asset get` 中返回。
+
+## 指定时间轴截图
+
+```bash
+wp --json page screenshot 20 --motion-timeline-id intro --motion-label title-in --motion-offset-ms 300 \
+  --motion-visual-mode reduced --target-version 4 --timeout 60 --idempotency-key page-20-motion-1 \
+  --output .tmp/web-presentation/shot/page-20-intro.png
+wp --json page screenshot 20 --motion-timeline-id intro --motion-at-ms 1200 --output .tmp/web-presentation/shot/page-20-1200.png
+```
+
+- `--motion-timeline-id` 必须与 `--motion-label` 或 `--motion-at-ms` 一起使用且二选一；`--motion-offset-ms` 只能搭配 `--motion-label`，`--motion-visual-mode` 为 `full | reduced`。
+- 命令先读取页面和 `/workspaces/{id}/capabilities`；`timeline.enabled` 或 `timeline.capture_snapshot` 未开启时以 `TIMELINE_CAPTURE_CAPABILITY_MISSING` 退出，不创建任务，也不会退回最新默认截图。
+- 成功输出 `job_id`、`screenshot_id`、`version_no` 与 `applied_motion`，下载结果写入指定文件。临时帧不更新页面默认截图指针，后续读取 latest 仍是默认海报；任务未成功时不会回退其它截图。
+- 时间轴截图只证明指定时刻的静态视觉；`applied_motion` 不代表声音、动画播放或用户设备上的 reduced 效果已经验收。
+
+## 放映时间轴能力
+
+`project slideshow update` 与 `project route update` 在提交 `timeline_end` 或 `timeline_timeout_ms` 前按工作空间 capabilities 校验：`advance_modes` 未声明 `timeline_end` 或 schema 低于 3 时以 `SLIDESHOW_TIMELINE_CAPABILITY_MISSING` 退出，不发送写请求，也不会把未知模式静默改成 `timer`。`media_end` 与 `media_timeout_ms` 继续按 M2 能力校验。
 
 ## 明确不支持
 
