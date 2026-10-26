@@ -102,7 +102,7 @@ wp --raw project list
 
 Skill 与 CLI 一起发布，但使用独立版本。`wp skill status` 会识别缺失、过期、较新、不兼容、用户修改和未受管理等状态；普通升级不会覆盖用户修改，`--force` 会先保留同级备份。CLI 升级不会隐式改写已安装 Skill，需要重新运行 `wp skill install` 完成同步。若此前版本曾向 `.claude/skills`、`.mimocode/skills`、`~/.config/mimocode/skills` 或 `.workbuddy/skills` 安装过副本，升级后请手动移除这些旧目录，统一使用 `.agents/skills`。
 
-当前源码版本关系：CLI `0.3.5` 内置 `web-presentation` Skill `1.4.4`，Skill 兼容范围为 `>=0.3.5,<0.4.0`。升级 CLI 后需重新运行 `wp skill install` 同步原安装范围；Doctor 会展示安装原因、实际版本和修复命令。构建时会把版本关系与规范化内容 SHA-256 写入 manifest。
+当前源码版本关系：CLI `0.4.0` 内置 `web-presentation` Skill `1.4.6`，Skill 兼容范围为 `>=0.4.0,<0.5.0`。升级 CLI 后需重新运行 `wp skill install` 同步原安装范围；Doctor 会展示安装原因、实际版本和修复命令。构建时会把版本关系与规范化内容 SHA-256 写入 manifest。
 
 `wp skill export` 生成的标准 ZIP 可用于支持本地上传的产品；CLI 不从 URL 或第三方仓库下载 Skill。
 
@@ -149,6 +149,12 @@ wp job wait <job_id>
 
 写入命令支持 `--idempotency-key <key>`；网络超时后需要重放同一业务请求时复用原 key，不要把同一个 key 用于不同请求。
 
+
+### 0.4.0 行为变更
+
+- 支持音频资源、项目旁白与 cue 配置，以及放映路由和媒体模式的读取与修改；能力受目标 Backend 的声明约束。
+- 补充历史截图、构建产物下载与时间轴截图命令，页面及组件变更结果保留截图描述和候选恢复入口。
+- 字体、字体族和主题配置命令纳入正式版本；内置 Skill `1.4.6` 同步 Motion、音频、字体与主题工作流，要求 CLI `>=0.4.0,<0.5.0`。
 
 ### 0.3.5 行为变更
 

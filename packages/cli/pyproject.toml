@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "web-presentation-cli"
-version = "0.3.5"
+version = "0.4.0"
 description = "Web Presentation CLI - 面向 AI 演示文稿创作平台的命令行与 Agent 工具包"
 readme = "README.md"
 license = { text = "Apache-2.0" }
