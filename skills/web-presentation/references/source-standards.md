@@ -47,8 +47,8 @@
 
 - 使用 `AssetModel` 前读取 Runtime Kit 当前契约和资源的场景/相机摘要，按“查询模型 → 读取渲染契约 → 配置视角”执行；相机索引与显式 `cameraPosition`/`cameraTarget` 互斥，位置和目标必须成对且不重合。容器必须用完整静态 class 声明明确宽高。
 - 当前三维展示是静态姿态，资源含动画数据不代表支持动画播放。替换资源会更新当前与历史页面预览，独立构建保留当次资源快照；替换模型不需要修改页面源码中的资源名。
-- 内容音频使用 `purpose="content"`，由用户手动播放；页面源码不得写 `autoplay`。旁白使用 `purpose="narration"` 前必须确认 `capabilities.slideshow.audio.page_narration=true`，且不得设置 `loop`、同一实际页面最多一个旁白目标、优先使用 `advance.mode=media_end`；能力未开放时不得生成旁白或宣称自动播放。
-- 交互音效只通过 `useAudioCue.v1` 的 `interaction.*` key 请求，且只在 `audio_cues=true` 时承诺播放；预览、截图、检查和导出为 no-op，业务逻辑不得等待或依赖播放结果。不要向页面暴露项目级 cue 绑定或音量设置。
+- 内容音频 purpose=content 由用户手动播放；narration 通过 media-ready 与 createSceneMediaTask.v1 显式交给页级 Scene，以真实 ended 完成。每页最多一个自动发声主媒体，其它自动视频 muted；旁白不能 loop，不写 autoplay，完成推进使用 schema 4 的 scene_end。
+- 交互音效只用 useAudioCue.v2 的 interaction.* key；Promise 等真实 play 许可，不等音效结束。静音、静态或无绑定按返回值处理，不阻塞业务，也不直接构造 Audio。
 - 音频替换会更新当前与历史页面预览，独立构建保留当次资源快照；替换不需要修改页面源码中的资源名，但必须携带最新 `file_hash` 基线。
 - `Icon`、`AssetImage`、`AssetVideo`、`AssetAudio`、`AssetModel` 等组件的 `name` 优先使用字符串字面量或同一 Vue 文件顶层的静态枚举。确需动态资源名时，候选名称必须来自当前工作空间 active 资源，并在项目 `build_extra_assets_json.asset_names` 中补齐所有可能引用；保存或预览成功不代表独立构建包含这些资源。`useAssetSrc(() => props.imageName)` 仍是 props 资源名的正确写法，但不免除该构建额外资源要求。
 

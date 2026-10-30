@@ -25,3 +25,10 @@ def test_current_backend_contract():
     # 响应字段也必须来自真实契约，避免 Mock 与投影同时使用错误字段而假绿。
     response_fields = document['components']['schemas']['WorkspaceFontConfigResponse']['properties']
     assert set(FONT_FACE_FIELDS) <= response_fields.keys()
+
+    schemas = document['components']['schemas']
+    assert schemas['SlideshowAdvance']['properties']['mode']['enum'] == ['manual', 'timer', 'scene_end']
+    assert schemas['SlideshowAdvance']['properties']['completion_delay_ms']['minimum'] == 0
+    assert 'auto_start' not in schemas['SlideshowSettings']['properties']
+    assert 'scene' in schemas['ExternalCapabilitiesResponse']['properties']
+    assert 'timeline' not in schemas['ExternalCapabilitiesResponse']['properties']

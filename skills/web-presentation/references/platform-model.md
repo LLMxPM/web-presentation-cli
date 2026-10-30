@@ -22,7 +22,7 @@ Web Presentation 的核心边界是“当前工作空间”。所有资源归属
 ## 归属、引用和快照不要混淆
 
 - 项目 configuration 是项目自己的展示快照；style 只是可复用模板，应用 style 后不会持续同步。
-- 项目 slideshow 保存默认整页动画、翻页方式、循环与进入放映后的初始自动推进（`auto_start`）；路由节点可整组覆盖 `transition`/`advance`，`null` 表示继承。保存设置不代表已控制浏览器播放。
+- 项目 slideshow 保存默认整页动画、翻页方式、循环与实际完成后停留（schema 4 的 `completion_delay_ms`）；路由节点可整组覆盖 `transition`/`advance`，`null` 表示继承。保存设置不代表已控制浏览器播放。
 - 项目 audio_settings 保存主音量、旁白音量、音效音量与 cue 绑定；读取以项目配置返回的 `asset_name/asset_status` 为准，写入只接受当前工作空间 active `audio` 资源的 `asset_id`。省略设置表示保留，显式空 `cue_bindings` 表示清空，显式 `null` 被拒绝。
 - 工作空间 capabilities 的 `slideshow.audio` 决定音频资产、页面旁白和项目 cue 是否真正可用。能力未开放时，即使源码或配置写入成功，也不得向用户宣称旁白自动播放或音效已发声。
 - 项目 route tree 是导航关系；页面 `project_id` 是归属关系；两者不是同一份数据。

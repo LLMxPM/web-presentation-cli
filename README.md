@@ -12,6 +12,8 @@
 
 主仓唯一维护的 External API v1 契约：[External Agent API v1 契约](https://github.com/LLMxPM/web-presentation/blob/dev/docs/developer/reference/external-agent-api.md)。本仓库当前只维护 CLI、专用同步客户端和 Skill 的接入实现。
 
+当前开发版 CLI 0.5.0 / Skill 1.5.0 使用 schema 4 Scene 放映配置，支持独立静态截图任务与可恢复状态；旧时间轴取帧参数已删除。真实播放、声音与浏览器验收见主仓 C3 记录。
+
 ## 用户快速开始
 
 ### 1. 安装 CLI

@@ -1,68 +1,57 @@
-# Motion 创作
+# Scene 动效创作
 
-本参考用于制作平台内有具体业务目标的动画页面。先阅读平台导览、页面生成流程和当前 `wp standards page`，再查询：
+先读当前 `wp standards page` 与真实项目配置，再查询版本化能力：
 
 ```powershell
-wp --profile local --workspace <id> --json workspace capabilities
-wp --profile local --workspace <id> --json runtime-kit get usePageTimeline.v1
+wp --json workspace capabilities
+wp --json runtime-kit get usePageScene.v1
+wp --json runtime-kit get useStaticPresentation.v1
+wp --json runtime-kit get AssetModel.v3
+wp --json runtime-kit get createSceneMediaTask.v1
+wp --json runtime-kit get useAudioCue.v2
 ```
 
-时间轴默认关闭。只有 capabilities.timeline.enabled=true 且真实能力目录返回入口时才可使用；用户授权的本地内测不等于 G1/G2 通过。未开放时报告限制，不猜路径、不访问开发仓库或私有服务。
+当前能力字段为 scene，放映 schema 4。import_path 以查询结果为准，开发入口可用不等于实机验收完成。组件首轮不自行声明页级 Scene，页面统一持有任务。
 
-## 单页入口
-
-路径以查询返回为准。当前入口支持以下形状：
+## 多条正向序列
 
 ```ts
 import { ref } from 'vue'
-import { usePageTimeline, seconds } from '@runtime-kit/public/composables/motion/usePageTimeline.v1'
-
-const pageRoot = ref<HTMLElement | null>(null)
-const story = usePageTimeline({
-  root: pageRoot,
-  bindings: {},
-  applyPoster: true,
-  timelineId: 'workflow-intro',
-  poster: { atLabel: 'readable' },
-  define(ctx) {
-    return {
-      plan: ctx.resources().build(),
-      visual(tl) {
-        tl.fromTo('.title', { opacity: 0, y: 24 },
-          { opacity: 1, y: 0, duration: seconds(400) }, 0)
-        tl.fromTo('.step', { opacity: 0, x: 32 },
-          { opacity: 1, x: 0, duration: seconds(350), stagger: seconds(150) }, 0.5)
-        tl.addLabel('readable')
-      },
-    }
-  },
-})
+import { usePageScene } from '@runtime-kit/public/composables/motion/usePageScene.v1'
+import { useStaticPresentation } from '@runtime-kit/public/composables/static/useStaticPresentation.v1'
+const root = ref<HTMLElement | null>(null)
+useStaticPresentation({ root, mode: 'default' })
+usePageScene({ root, define(scene) {
+  const output = scene.root.querySelector('[data-count]')!
+  const before = output.textContent, counter = { value: 0 }
+  scene.onCleanup(() => { output.textContent = before })
+  scene.visual({ id: 'number', role: 'blocking', define(tl) {
+    tl.to(counter, { value: 100, duration: 1, onUpdate() { output.textContent = String(Math.round(counter.value)) } })
+  } })
+  scene.visual({ id: 'title', role: 'blocking', afterTrack: 'number', define(tl) {
+    tl.fromTo('.title', { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4 })
+  } })
+} })
 ```
 
-将 ref 绑定到本页原生根元素，如 `<section ref="pageRoot">`；该元素包住所有动画目标，外层仍遵守 DefaultContainer 和固定画布规范。同页只声明一个时间轴，bindings 可为空。默认由 Editor 预览控制和放映宿主播放，不在 mounted/watch/RAF 中自行 play，不导入 GSAP 或创建第二个时钟。
+模板默认就应显示完整正文与 100，不依赖动画回调才能读到内容。`scene.visual` 支持 to/from/fromTo/set/addLabel/call、回调、位置、stagger、DOM/SVG 属性与数值对象；打字机可更新本页文本，SVG 描边可改 strokeDashoffset。禁止直接导入 GSAP 或插件；粒子使用 DOM/CSS/Canvas，不用插件。视觉 duration/位置用秒；任务 startMs/offsetMs 用毫秒。
 
-define 只在挂载时运行一次，返回资源计划和 visual 填充函数。纯视觉可以用空资源计划；旧 definition/DOM preset 只兼容已有内部内容，不作为新任务默认写法。
+有限 blocking 实际完成才参与 scene_end；无限 repeat:-1 只允许 ambient，且不能作为前驱。任务 id 唯一，用 afterTrack 等待真实完成，不按预估 duration 排程。有限 Canvas 自定义任务 run 返回真实结束 Promise，清理 RAF/监听，setSuspended 合并冻结，恢复不补跑积压。
 
-## 受控原生视觉
+## 真实模型与媒体
 
-- 只支持 fromTo、addLabel、原生位置字符串、非负数值 stagger 及普通函数复用。from/to 必须声明相同属性，属性限 opacity/x/y/scale/rotation；duration 必须为正数，ease 使用名称。
-- 资源、poster、定位统一毫秒；原生 GSAP 的 duration、stagger、位置用秒，通过 seconds(ms) 转换。
-- 允许同元素同属性的顺序段落，禁止区间重叠。布局定位和动画变换用不同包裹层。禁止 call/add/to/from、回调、插件、无限重复、外部目标或独立播放者。
-- 资源 id 自动登记为视觉标签，例如在 'demo' 或 'demo+=0.2' 追加段落。纯视觉也可以 addLabel，再用标签组织段落。
-- Runtime 托管暂停时间轴、显式初态、静默采样和释放。默认在所有视觉段落之后调用 `tl.addLabel('readable')`，用 `poster: { atLabel: 'readable' }` 锚定可读终态；需要窗口化项目预览先显示海报时设置 `applyPoster: true`，由宿主开始播放时再回到起点。
-- 不猜固定 poster.atMs，也不要简单给动画时长额外加等待时间：海报必须处于真实计划的 0–durationMs 内。确需指定中间态时使用当前编排中的标签或已确认范围内的毫秒值。调整段落或错峰后仍须检查海报；越界会导致初始化失败，必须按诊断的 code/fieldPath 和实际时长修正，不能以静态画面或 Job 编译成功宣称动画完成。
-- reduce 保留可读状态，预览可通过宿主模拟 full/reduced。
+先查资源详情 `analysis_metadata.model3d.animations`，要求 supported=true，使用真实 index/signature；不能猜动作名或从动画数量推断支持。AssetModel.v3 的组件 ref.getHandle() 只在真实首帧后返回句柄。注册 `scene.task(handle.animation({id,role:'blocking',clipIndex,signature}))`，第二段加 afterTrack。一个实例不能同时播放两个动作；相机/transform 是数值副本，onUpdate 调 invalidate，清理调 reset。不支持 seek、倒放或模型采样。
 
-## 有限资源 builder
+AssetAudio.v1 的 purpose=narration、AssetVideo.v1 的 purpose=automatic 经 media-ready 点名给 createSceneMediaTask.v1，真实 ended 才完成。content 只由用户手动播放，不交给 Scene。每页最多一个自动发声主媒体，其它自动视频 muted；旁白不能 loop。受阻媒体必须在当前 Runtime/观众窗口点击允许播放，控制台或 Editor 父窗口不能代替该手势，全屏也不保证发声许可。
 
-按需要使用 `ctx.resources().voice(id, options).audio(id, options).video(id, options).clip(id, queriedClip, options).build()`。不需要媒体时不要为了展示 API 额外造素材。
+useAudioCue.v2 的 playCue('interaction.*') 返回真实播放许可的 Promise，不等待 cue 结束，不作为 blocking 主媒体。没有 provider/绑定、静音或静态上下文按稳定结果处理。
 
-- voice 为主音频并从 0 开始；video 默认静音。音视频 options 包括真实 asset 逻辑名、startMs 或 afterTrack/offsetMs、inMs/outMs、rate 和有限 repeat，以当前返回的规范为准。
-- clip 引用真实查询得到的 index、signature、durationMs（由资源 duration_ms 映射），引用不支持或过期动作会被拒绝；不猜动作名称或时长。
-- 同步资源通过当前公开的 AssetAudio.v2、AssetVideo.v2、AssetModel.v2 渲染，使用前分别读取能力详情；不用 v1 手动媒体代替同步目标。
-- timeline 音频和独立旁白/cue 是不同能力。不要因为 timeline 开放就使用被 slideshow.audio 关闭的 narration/cue 用途。
-- 只有 slideshow.advance_modes 包含 timeline_end 才能保存该模式；业务任务默认可保留手动翻页，不静默替换用户指定的推进方式。
+联合样例应同时包含数字、打字机、SVG、DOM/CSS/Canvas 粒子、两个真实动作、旁白和 cue。源码与类型验证不能替代浏览器、WebGL、发声或正式双窗口实测。
 
-## 交付
+## 独立静态态与结果
 
-通过 wp 提交页面/组件，等待 Mutation Job 成功并重新读取版本，保留正常编译和布局错误修正；交付项目/页面 ID、页序、短期预览地址及实际限制。用户负责验收时，不开展 G1/G2、评分或长时间稳定性测试，不把静态截图或任务成功说成动画已验收。
+同根 useStaticPresentation 的 default/poster/unsupported 与 Scene 完全独立。capture/export/thumbnail 不创建 Scene、不快进或取动画帧；poster prepare 响应 AbortSignal，unsupported 附短原因。STATIC_PRESENTATION_UNAVAILABLE 为内容 unavailable，不覆盖已完成布局诊断，不把资源错误、Renderer 超时归成静态不支持。
+
+`wp --json page screenshot <page_id> --job --target-version <version>` 使用独立静态截图任务；`--no-wait` 或等待到期返回 pending 和 job_id，可用 `--job-id` 继续。ready 才落盘；unavailable 是内容决定，skipped 是任务跳过，failed 是执行失败并非成功截图。任意时刻取帧参数已删除。
+
+项目只有 manual/timer/scene_end、delay_ms、completion_delay_ms 与 loop。完成停留可为零，scene_end 必须有 blocking，timer 到点终止本页。保持/释放只阻止自动翻页，不暂停 Scene 或改写配置。截图不能证明动画已播完或声音可听；未实测项明确列出。

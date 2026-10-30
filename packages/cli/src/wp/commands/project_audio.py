@@ -1,4 +1,4 @@
-"""文件功能：项目音频音量与 cue 绑定命令，包含能力门禁、严格写模型和原子清空。"""
+"""文件功能：项目音频音量与 cue 绑定命令，提供严格写模型和原子清空。"""
 
 from __future__ import annotations
 
@@ -26,8 +26,6 @@ AUDIO_VOLUME_FIELDS = (
 )
 AUDIO_SETTINGS_FIELDS = frozenset((*AUDIO_VOLUME_FIELDS, "cue_bindings"))
 CUE_BINDING_WRITE_FIELDS = frozenset({"key", "asset_id", "gain_percent"})
-AUDIO_CAPABILITY_MISSING = "AUDIO_CAPABILITY_MISSING"
-AUDIO_CUES_NOT_OPEN = "AUDIO_CUES_NOT_OPEN"
 
 
 def _validate_percent(value: Any, label: str) -> int:
@@ -85,97 +83,6 @@ def normalize_audio_settings_payload(value: Any, *, label: str = "音频设置")
     return normalized
 
 
-def has_cue_bindings(settings: Mapping[str, Any]) -> bool:
-    """判断写入载荷是否包含至少一个 cue 绑定。"""
-
-    bindings = settings.get("cue_bindings")
-    return isinstance(bindings, list) and bool(bindings)
-
-
-def load_audio_capability(client: ApiClient, workspace_id: int) -> dict[str, Any]:
-    """读取工作空间音频能力；字段缺失或 Schema 未知时显式失败，不推测支持。"""
-
-    response = client.get(f"/workspaces/{workspace_id}/capabilities")
-    slideshow = response.get("slideshow") if isinstance(response, dict) else None
-    audio = slideshow.get("audio") if isinstance(slideshow, dict) else None
-    if (
-        not isinstance(audio, dict)
-        or not isinstance(audio.get("audio_cues"), bool)
-        or audio.get("schema_version") != 1
-    ):
-        raise click.ClickException(
-            f"[{AUDIO_CAPABILITY_MISSING}] 当前服务端未声明可识别的音频能力，"
-            "不能确认 audio_cues 是否开放；请升级服务端后重试。"
-        )
-    return audio
-
-
-def _resolve_workspace_id(
-    client: ApiClient,
-    *,
-    project_id: int | None,
-    workspace_id: int | None = None,
-) -> int:
-    """定位项目所属工作空间；无法确定时拒绝能力判断。"""
-
-    if workspace_id is not None:
-        return workspace_id
-    if project_id is not None:
-        project = client.get(f"/projects/{project_id}")
-        project_workspace_id = project.get("workspace_id") if isinstance(project, dict) else None
-        if isinstance(project_workspace_id, int):
-            return project_workspace_id
-    if isinstance(client.workspace_id, int):
-        return client.workspace_id
-    raise click.ClickException(
-        f"[{AUDIO_CAPABILITY_MISSING}] 无法确定目标工作空间，不能核对 audio_cues 能力。"
-    )
-
-
-def ensure_audio_cues_write_allowed(
-    client: ApiClient,
-    audio_settings: Mapping[str, Any],
-    *,
-    project_id: int | None = None,
-    workspace_id: int | None = None,
-) -> None:
-    """含非空 cue 绑定的写入必须先确认 audio_cues 已开放；空绑定不受限制。"""
-
-    if not has_cue_bindings(audio_settings):
-        return
-    resolved_workspace_id = _resolve_workspace_id(
-        client,
-        project_id=project_id,
-        workspace_id=workspace_id,
-    )
-    capability = load_audio_capability(client, resolved_workspace_id)
-    if capability["audio_cues"] is not True:
-        raise click.ClickException(
-            f"[{AUDIO_CUES_NOT_OPEN}] 当前工作空间尚未开放 audio_cues（schema_version=1），"
-            "拒绝提交非空 cue 绑定；未发送任何写入。已保存的历史绑定仍可读取或用 clear 清空。"
-        )
-
-
-def gate_audio_settings_in_payload(
-    client: ApiClient,
-    payload: Mapping[str, Any],
-    *,
-    project_id: int | None = None,
-    workspace_id: int | None = None,
-) -> None:
-    """通用项目写命令的音频门禁：只拦截显式携带的非空 cue 绑定。"""
-
-    audio_settings = payload.get("audio_settings")
-    if not isinstance(audio_settings, Mapping):
-        return
-    ensure_audio_cues_write_allowed(
-        client,
-        audio_settings,
-        project_id=project_id,
-        workspace_id=workspace_id,
-    )
-
-
 def _read_configuration_audio_settings(client: ApiClient, project_id: int) -> dict[str, Any]:
     """读取项目配置中的音频摘要，包含资源逻辑名等只读展示字段。"""
 
@@ -188,23 +95,10 @@ def _read_configuration_audio_settings(client: ApiClient, project_id: int) -> di
     return audio_settings
 
 
-def _audio_capability_state(client: ApiClient, project_id: int) -> str:
-    """终端展示用的能力状态；查询失败只降低可读性，不阻断读取历史值。"""
-
-    try:
-        workspace_id = _resolve_workspace_id(client, project_id=project_id)
-        capability = load_audio_capability(client, workspace_id)
-    except (click.ClickException, ApiClientError):
-        return "未知（服务端未声明可识别的音频能力）"
-    return "已开放" if capability["audio_cues"] else "未开放（仅可读取或清空现有绑定）"
-
-
-def _print_audio_settings(project_id: int, audio_settings: dict[str, Any], *, capability: str | None) -> None:
+def _print_audio_settings(project_id: int, audio_settings: dict[str, Any]) -> None:
     """以表格展示三段音量与 cue 绑定摘要。"""
 
     print_success(f"项目音频设置: 项目 {project_id}")
-    if capability is not None:
-        print_table("能力状态", ["字段", "值"], [["audio_cues", capability]])
     print_table(
         "音量（0–100）",
         ["字段", "值"],
@@ -238,7 +132,7 @@ def _print_audio_settings(project_id: int, audio_settings: dict[str, Any], *, ca
 
 @click.group("audio")
 def project_audio_group() -> None:
-    """项目音量与 cue 绑定；读取保留历史值，写入按 audio_cues 能力门禁。"""
+    """项目音量与 cue 绑定；写入保持严格音量与绑定结构，权限和资源由服务端校验。"""
 
 
 @openapi_command(project_audio_group, "get", contract("GET", "/api/v1/projects/{project_id}/configuration"))
@@ -256,7 +150,6 @@ def get_project_audio_cmd(ctx: click.Context, project_id: int) -> None:
         _print_audio_settings(
             project_id,
             audio_settings,
-            capability=_audio_capability_state(client, project_id),
         )
     except ApiClientError as err:
         handle_api_error("读取项目音频设置失败", err)
@@ -280,20 +173,19 @@ def get_project_audio_cmd(ctx: click.Context, project_id: int) -> None:
 @idempotency_key_option
 @click.pass_context
 def update_project_audio_cmd(ctx: click.Context, project_id: int, audio_file: str) -> None:
-    """完整替换项目音量与 cue 绑定；非空 cue 需要 audio_cues 已开放。"""
+    """完整替换项目音量与 cue 绑定；权限和 cue 资源由服务端校验。"""
 
     try:
         payload = require_object(read_json_file(audio_file, label="音频设置"), label="音频设置")
         raw_settings = payload.get("audio_settings", payload)
         settings = normalize_audio_settings_payload(raw_settings, label="音频设置")
         client = get_client(ctx)
-        ensure_audio_cues_write_allowed(client, settings, project_id=project_id)
         client.put(f"/projects/{project_id}/configuration", json_data={"audio_settings": settings})
         audio_settings = _read_configuration_audio_settings(client, project_id)
         if ctx.obj.get("as_json"):
             output_result(ctx, {"project_id": project_id, "audio_settings": audio_settings})
             return
-        _print_audio_settings(project_id, audio_settings, capability=None)
+        _print_audio_settings(project_id, audio_settings)
     except ApiClientError as err:
         handle_api_error("更新项目音频设置失败", err)
 
@@ -310,7 +202,7 @@ def update_project_audio_cmd(ctx: click.Context, project_id: int, audio_file: st
 @idempotency_key_option
 @click.pass_context
 def clear_project_audio_cmd(ctx: click.Context, project_id: int) -> None:
-    """清空项目 cue 绑定并保留三段音量；能力关闭时仍可执行。"""
+    """清空项目 cue 绑定并保留三段音量。"""
 
     try:
         result = get_client(ctx).post(f"/projects/{project_id}/audio-cues/clear")
@@ -320,14 +212,12 @@ def clear_project_audio_cmd(ctx: click.Context, project_id: int) -> None:
         if ctx.obj.get("as_json"):
             output_result(ctx, {"project_id": project_id, "audio_settings": audio_settings})
             return
-        _print_audio_settings(project_id, audio_settings, capability=None)
+        _print_audio_settings(project_id, audio_settings)
     except ApiClientError as err:
         handle_api_error("清空项目 cue 绑定失败", err)
 
 
 __all__ = [
-    "ensure_audio_cues_write_allowed",
-    "gate_audio_settings_in_payload",
     "normalize_audio_settings_payload",
     "project_audio_group",
 ]

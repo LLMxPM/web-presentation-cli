@@ -72,13 +72,14 @@ def test_plan_targets_rejects_invalid_scope(tmp_path: Path) -> None:
 
 
 def test_bundled_skill_minimum_cli_covers_route_add_and_candidate_inference() -> None:
-    """当前内置 Skill 随 CLI 0.4.0 发布，兼容范围不得包含旧版 CLI。"""
+    """当前内置 Skill 随 CLI 0.5.0 发布，兼容范围不得包含旧版 CLI。"""
 
     skill = get_bundled_skill("web-presentation")
     assert version_satisfies("0.3.3", skill.requires_cli) is False
     assert version_satisfies("0.3.4", skill.requires_cli) is False
     assert version_satisfies("0.3.5", skill.requires_cli) is False
-    assert version_satisfies("0.4.0", skill.requires_cli) is True
+    assert version_satisfies("0.4.0", skill.requires_cli) is False
+    assert version_satisfies("0.5.0", skill.requires_cli) is True
 
 
 def test_install_status_and_uninstall_lifecycle(tmp_path: Path) -> None:
@@ -151,7 +152,7 @@ def test_incompatible_newer_install_still_requires_explicit_downgrade(tmp_path: 
     install_skill(skill, target)
     marker_path = target.path / ".wp-install.json"
     marker = json.loads(marker_path.read_text(encoding="utf-8"))
-    marker.update({"skill_version": "2.0.0", "requires_cli": ">=0.5.0,<0.6.0"})
+    marker.update({"skill_version": "2.0.0", "requires_cli": ">=0.6.0,<0.7.0"})
     marker_path.write_text(json.dumps(marker), encoding="utf-8")
 
     assert inspect_target(skill, target)["status"] == "incompatible"

@@ -27,44 +27,18 @@ wp project route add <project_id> --page-id <page_id> --route details --parent c
 
 ## 放映配置与路由覆盖
 
-项目默认放映配置通过 `wp project slideshow get <project_id>` 读取，通过 `wp project slideshow update <project_id> --slideshow-file <file>` 写回。`--slideshow-file` 可以是完整 slideshow 对象，也可以是包含 `slideshow` 字段的对象；写入时必须完整提供 `transition`、`advance`、`loop`、`auto_start`，CLI 和 Backend 都不会猜测补全。
+项目默认放映配置通过 `wp project slideshow get <project_id>` 读取，通过 `wp project slideshow update <project_id> --slideshow-file <file>` 整体写回。schema 4 的完整对象：
 
 ```json
-{
-  "transition": {"effect": "fade", "duration_ms": 400},
-  "advance": {"mode": "timer", "delay_ms": 5000, "media_timeout_ms": 300000},
-  "loop": true,
-  "auto_start": true
-}
+{"transition":{"effect":"fade","duration_ms":400},"advance":{"mode":"scene_end","delay_ms":5000,"completion_delay_ms":300},"loop":false}
 ```
 
-`advance.mode` 只接受 `manual`、`timer`、`media_end`；`delay_ms` 必填，`media_timeout_ms` 范围为 1000–3600000（默认 300000）。使用 `media_end` 或提供 `media_timeout_ms` 前，CLI 会读取工作空间 capability 的 `slideshow`：服务端未声明 `media_end`、或 Schema 低于 2 时直接失败（`SLIDESHOW_MEDIA_CAPABILITY_MISSING`），不会把媒体模式降级成 timer，也不会发送旧服务不认识的字段。未知模式返回 `SLIDESHOW_ADVANCE_MODE_UNKNOWN`。
+advance 只接受 manual/timer/scene_end。delay_ms 为 1000–3600000，completion_delay_ms 为 0–3600000、默认 300；零表示实际完成后立即翻页。旧模式、旧超时和自动开始已删除。CLI 在新 advance 写入前确认服务 schema 4，缺失为 SLIDESHOW_CAPABILITY_MISSING，不降级 timer。scene_end 必须有有限 blocking，循环 ambient 不计入；timer 到点停止本页。播放必须显式开始，保持/释放只影响推进。
+
+路由覆盖通过 `wp project route update <project_id> --edit-file <file>`，按完整路径修改并保留未编辑节点原覆盖，过滤 id/effective_slideshow 等只读字段。transition/advance 整组覆盖，null 恢复继承；省略表示不修改。分组仅接受 order/hidden/group_title。整树 replace 会移除未包含节点，不要并发修改同一项目。
 
 ```json
-{
-  "transition": {"effect": "fade", "duration_ms": 400},
-  "advance": {"mode": "media_end", "delay_ms": 5000, "media_timeout_ms": 120000},
-  "loop": false,
-  "auto_start": true
-}
+[{"route":"cover","order":1},{"route":"chapter-1/overview","advance":null},{"route":"narration","advance":{"mode":"scene_end","delay_ms":5000,"completion_delay_ms":0}}]
 ```
 
-`media_end` 表示等到本页非循环音视频全部结束再翻页；循环背景不参与等待，没有参与媒体时按 `delay_ms` 停留。保存成功只代表配置已写入，浏览器是否允许有声自动播放由 Runtime 与用户手势决定。
-
-音频能力与放映配置相互独立：`capabilities.slideshow.audio` 决定旁白和 cue 是否开放；`page_narration=false` 时不要生成旁白，`audio_cues=false` 时 cue 绑定不会发声。旁白开放后，旁白页优先使用 `media_end`，让整页过渡和 render-ready 完成后再开始；`timer` 可能在旁白结束前翻页，`manual` 不因旁白结束翻页。cue 属于项目级音频设置，切页音效由真实页面切换触发，不要为了音效伪造路由变化；会话静音不写回项目配置。
-
-路由覆盖使用 `wp project route update <project_id> --edit-file <file>`。该命令会先读取当前整树，按完整路由路径应用编辑，再整树写回；自动保留未编辑节点的原始 `transition`/`advance`，并过滤 `id`、`page_code`、`page_title`、`display_title`、`effective_slideshow` 等只读字段。路由路径顶层写 `cover`，分组子页写 `chapter-1/overview`。
-
-```json
-[
-  {"route": "cover", "order": 1, "hidden": false},
-  {"route": "chapter-1/overview", "transition": {"effect": "fade", "duration_ms": 400}, "advance": null},
-  {"route": "video", "advance": {"mode": "media_end", "delay_ms": 5000, "media_timeout_ms": 120000}}
-]
-```
-
-`transition` 和 `advance` 是整组覆盖：提供对象表示完整覆盖，显式 `null` 表示恢复继承项目默认值；省略字段表示本次不修改。分组节点只接受 `order`、`hidden`、`group_title`。`wp project route replace` 仍是原始整树替换入口，需要自行按当前写入 Schema 构造载荷，遗漏节点会被移除。
-
-配置写入只代表平台保存了放映设置，不代表已控制任何浏览器窗口的播放状态；`auto_start` 只决定进入全屏放映时的初始自动/手动模式，运行中可在放映控制条切换，暂停和单窗口放映由 Runtime 在具备相应能力的版本中执行。不要用 CLI 冒充“已经播放”或跨设备远控。
-
-替换后重新读取路由及页面列表，核对页数、顺序、可见性、真实页面 ID 和挂载状态，再截图复核目录、页码和导航。失败时报告错误与未完成项，不重复创建已经成功的页面。
+音频设置不再受阶段开关限制，仍校验真实资源、权限和严格音量。Scene 旁白实际 ended 才完成；同页最多一个自动发声主媒体，cue 不参与该完成目标。配置保存不能证明任何浏览器已播放。写后重新读取页数、顺序、可见性和绑定，截图仅复核静态布局，正式播放留待真实预览验证。

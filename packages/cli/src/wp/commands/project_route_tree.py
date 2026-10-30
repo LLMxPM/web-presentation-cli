@@ -6,7 +6,7 @@ from typing import Any
 
 import click
 
-from wp.commands.project_slideshow import SLIDESHOW_CAPABILITY_MISSING
+from wp.commands.project_slideshow import SLIDESHOW_CAPABILITY_MISSING, validate_advance_config
 
 ROUTE_EDIT_KEYS = frozenset({"route", "order", "hidden", "group_title", "transition", "advance"})
 
@@ -14,6 +14,7 @@ ROUTE_EDIT_KEYS = frozenset({"route", "order", "hidden", "group_title", "transit
 def _route_write_page_fields(node: dict[str, Any], *, child: bool) -> dict[str, Any]:
     """把页面节点转换为写入 Schema；保留原始覆盖值，过滤只读派生字段。"""
 
+    validate_advance_config(node.get("advance"), f"路由 {node.get('route')}")
     fields: dict[str, Any] = {
         "route": node.get("route"),
         "order": node.get("order"),

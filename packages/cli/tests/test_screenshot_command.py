@@ -24,7 +24,7 @@ def test_screenshot_command_help() -> None:
     runner = CliRunner()
     result = runner.invoke(main, ["page", "screenshot", "--help"])
     assert result.exit_code == 0
-    assert "获取指定页面的最新截图" in result.output
+    assert "获取最新静态截图" in result.output
 
 
 def test_screenshot_command_success(tmp_path: Path) -> None:
@@ -180,103 +180,10 @@ def test_screenshot_by_content_id_does_not_refresh_latest(tmp_path: Path) -> Non
     assert payload["version_no"] is None
 
 
-def test_screenshot_motion_requires_capability_before_write(tmp_path: Path) -> None:
-    """能力关闭时不提交临时截图任务，并明确报告缺失能力。"""
-
-    mock_client = MagicMock()
-    mock_client.get.side_effect = [
-        {"workspace_id": 9},
-        {"timeline": {"enabled": False, "capture_snapshot": False}},
-    ]
-    with patch("wp.commands.screenshot.ApiClient", return_value=mock_client):
-        result = CliRunner().invoke(
-            main,
-            [
-                "page", "screenshot", "42",
-                "--motion-timeline-id", "intro",
-                "--motion-at-ms", "1200",
-                "--output", str(tmp_path / "motion.png"),
-            ],
-        )
-
-    assert result.exit_code != 0
-    assert "TIMELINE_CAPTURE_CAPABILITY_MISSING" in result.output
-    mock_client.post.assert_not_called()
-    mock_client.get_bytes.assert_not_called()
 
 
-def test_screenshot_motion_rejects_ambiguous_selector(tmp_path: Path) -> None:
-    """标签与绝对时间不能同时提交，避免服务端猜测时间位置。"""
-
-    mock_client = MagicMock()
-    with patch("wp.commands.screenshot.ApiClient", return_value=mock_client):
-        result = CliRunner().invoke(
-            main,
-            [
-                "page", "screenshot", "42",
-                "--motion-timeline-id", "intro",
-                "--motion-label", "detail",
-                "--motion-at-ms", "1200",
-                "--output", str(tmp_path / "motion.png"),
-            ],
-        )
-
-    assert result.exit_code != 0
-    assert "必须且只能提供一个" in result.output
-    mock_client.get.assert_not_called()
-    mock_client.post.assert_not_called()
 
 
-def test_screenshot_motion_polls_job_and_downloads_content(tmp_path: Path) -> None:
-    """能力开放时提交任务、等待终态并保存任务内容，不调用默认最新截图。"""
-
-    output_file = tmp_path / "motion.png"
-    screenshot_id = "a" * 64
-    mock_client = MagicMock()
-    mock_client.get.side_effect = [
-        {"workspace_id": 9},
-        {"timeline": {"enabled": True, "capture_snapshot": True}},
-        {
-            "job_id": 77,
-            "status": "succeeded",
-            "result": {
-                "screenshot_id": screenshot_id,
-                "version_no": 3,
-                "applied_motion": {"status": "applied", "sampled_time_ms": 1200},
-            },
-        },
-    ]
-    mock_client.post.return_value = {"job_id": 77, "status": "pending"}
-    mock_client.get_bytes.return_value = (
-        {"content-type": "image/png", "etag": f'"{screenshot_id}"'},
-        b"MOTION_PNG",
-    )
-
-    with patch("wp.commands.screenshot.ApiClient", return_value=mock_client):
-        result = CliRunner().invoke(
-            main,
-            [
-                "--json",
-                "page", "screenshot", "42",
-                "--motion-timeline-id", "intro",
-                "--motion-at-ms", "1200",
-                "--output", str(output_file),
-            ],
-        )
-
-    assert result.exit_code == 0, result.output
-    assert output_file.read_bytes() == b"MOTION_PNG"
-    mock_client.get_latest_page_screenshot.assert_not_called()
-    mock_client.post.assert_called_once_with(
-        "/pages/42/screenshot-jobs",
-        json_data={"motion_snapshot": {"timeline_id": "intro", "visual_mode": "full", "at_ms": 1200}},
-    )
-    mock_client.get_bytes.assert_called_once_with("/pages/42/screenshot-jobs/77/content")
-    payload = json.loads(result.output)
-    assert payload["job_id"] == 77
-    assert payload["screenshot_id"] == screenshot_id
-    assert payload["applied_motion"]["sampled_time_ms"] == 1200
-    assert payload["version_no"] == 3
 
 
 def test_screenshot_content_404_does_not_fall_back_to_latest(tmp_path: Path) -> None:
@@ -308,3 +215,52 @@ def test_screenshot_content_404_does_not_fall_back_to_latest(tmp_path: Path) -> 
     assert "PAGE_SCREENSHOT_NOT_FOUND" in result.output
     mock_client.get_latest_page_screenshot.assert_not_called()
     assert not output_file.exists()
+
+
+@pytest.mark.parametrize("job_status,code,expected,exit_code", [
+    ("pending", None, "pending", 0), ("running", None, "pending", 0),
+    ("failed", "STATIC_PRESENTATION_UNAVAILABLE", "unavailable", 0),
+    ("skipped", "SOURCE_CHANGED", "skipped", 0), ("failed", "RENDERER_TIMEOUT", "failed", 1),
+])
+def test_static_screenshot_job_keeps_distinct_states(tmp_path: Path, job_status: str, code: str | None, expected: str, exit_code: int) -> None:
+    """内容不可用、跳过与执行失败都不落盘，返回原因码和可恢复任务 ID。"""
+    client = MagicMock(); client.post.return_value = {"page_id": 42, "job_id": 7, "status": job_status, "error": {"code": code, "message": "原因"} if code else None}
+    output = tmp_path / "shot.png"
+    with patch("wp.commands.screenshot.ApiClient", return_value=client):
+        result = CliRunner().invoke(main, ["--json", "page", "screenshot", "42", "--no-wait", "--output", str(output)])
+    assert result.exit_code == exit_code, result.output
+    value = json.loads(result.output); assert value["status"] == expected and value["job_id"] == 7
+    assert not output.exists(); client.get_bytes.assert_not_called()
+    client.post.assert_called_once_with("/pages/42/screenshot-jobs", json_data={})
+
+def test_static_job_can_resume_and_download_fixed_same_origin_endpoint(tmp_path: Path) -> None:
+    """忽略响应里的远程 content_url，下载本页任务固定端点，并保留版本。"""
+    client = MagicMock(); client.get.return_value = {"page_id": 42, "job_id": 7, "status": "succeeded", "result": {"screenshot_id": "hash", "version_no": 3, "content_url": "https://evil/secret"}}
+    client.get_bytes.return_value = ({"content-type": "image/png"}, b"PNG")
+    output = tmp_path / "shot.png"
+    with patch("wp.commands.screenshot.ApiClient", return_value=client):
+        result = CliRunner().invoke(main, ["--json", "page", "screenshot", "42", "--job-id", "7", "--output", str(output)])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["status"] == "ready" and output.read_bytes() == b"PNG"
+    client.get_bytes.assert_called_once_with("/pages/42/screenshot-jobs/7/content")
+    client.post.assert_not_called()
+
+def test_old_motion_options_are_removed() -> None:
+    """不提供任意时刻取帧的命令或隐藏兼容参数。"""
+    result = CliRunner().invoke(main, ["page", "screenshot", "42", "--motion-timeline-id", "old"])
+    assert result.exit_code != 0 and "No such option" in result.output
+
+
+@pytest.mark.parametrize("response", [
+    {"page_id": 42, "job_id": 8, "status": "pending"},
+    {"page_id": 43, "job_id": 7, "status": "pending"},
+    {"page_id": 42, "job_id": 7, "status": "succeeded", "result": {"screenshot_id": "hash", "version_no": True}},
+])
+def test_job_identity_cannot_change_or_use_invalid_version(response: dict) -> None:
+    """恢复查询不能下载另一任务或另一页面，非法版本也不能生成 ready。"""
+    client = MagicMock(); client.get.return_value = response
+    with patch("wp.commands.screenshot.ApiClient", return_value=client):
+        result = CliRunner().invoke(main, ["--json", "page", "screenshot", "42", "--job-id", "7"])
+    assert result.exit_code == 1, result.output
+    assert json.loads(result.output)["code"] == "PAGE_SCREENSHOT_JOB_INVALID"
+    client.get_bytes.assert_not_called()

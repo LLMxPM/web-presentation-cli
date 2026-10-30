@@ -52,23 +52,13 @@ wp asset download 42 --output .tmp/web-presentation/product.glb
 
 `--json asset list` 为 `model3d` 项附带 `format`、`scene_count`、`camera_count` 和 `animation_count` 摘要，完整分析元数据仍只在 `asset get` 中返回。
 
-## 指定时间轴截图
+## 独立静态截图与 Scene 配置
 
-```bash
-wp --json page screenshot 20 --motion-timeline-id intro --motion-label title-in --motion-offset-ms 300 \
-  --motion-visual-mode reduced --target-version 4 --timeout 60 --idempotency-key page-20-motion-1 \
-  --output .tmp/web-presentation/shot/page-20-intro.png
-wp --json page screenshot 20 --motion-timeline-id intro --motion-at-ms 1200 --output .tmp/web-presentation/shot/page-20-1200.png
-```
+CLI 0.5.0 删除任意时刻采样参数；最新/历史截图使用独立静态呈现。`page screenshot --job --no-wait` 返回任务状态，`--job-id` 可继续查询；ready 才落盘，pending/unavailable/skipped/failed 保留区别和稳定原因码，执行失败退出非零。默认最新 GET 和历史内容下载保持原语义。
 
-- `--motion-timeline-id` 必须与 `--motion-label` 或 `--motion-at-ms` 一起使用且二选一；`--motion-offset-ms` 只能搭配 `--motion-label`，`--motion-visual-mode` 为 `full | reduced`。
-- 命令先读取页面和 `/workspaces/{id}/capabilities`；`timeline.enabled` 或 `timeline.capture_snapshot` 未开启时以 `TIMELINE_CAPTURE_CAPABILITY_MISSING` 退出，不创建任务，也不会退回最新默认截图。
-- 成功输出 `job_id`、`screenshot_id`、`version_no` 与 `applied_motion`，下载结果写入指定文件。临时帧不更新页面默认截图指针，后续读取 latest 仍是默认海报；任务未成功时不会回退其它截图。
-- 时间轴截图只证明指定时刻的静态视觉；`applied_motion` 不代表声音、动画播放或用户设备上的 reduced 效果已经验收。
+放映 schema 4 只接受 manual/timer/scene_end、delay_ms、completion_delay_ms 和 loop；完成后停留允许零。旧模式、超时字段和自动开始删除。新 advance 写入前核对 schema 4，缺失声明不降级 timer。Skill 1.5.0 同步 Scene 多序列、模型 v3、显式媒体任务、cue v2 和独立静态态。
 
-## 放映时间轴能力
-
-`project slideshow update` 与 `project route update` 在提交 `timeline_end` 或 `timeline_timeout_ms` 前按工作空间 capabilities 校验：`advance_modes` 未声明 `timeline_end` 或 schema 低于 3 时以 `SLIDESHOW_TIMELINE_CAPABILITY_MISSING` 退出，不发送写请求，也不会把未知模式静默改成 `timer`。`media_end` 与 `media_timeout_ms` 继续按 M2 能力校验。
+音频阶段门禁删除，严格音量/绑定参数与服务端资源、权限验证保留。真实浏览器、Mutation Job → Renderer、声音、WebGL、多窗口及独立产物由主仓 C3 验收；本仓测试与构建不代表已实测。
 
 ## 明确不支持
 
@@ -81,3 +71,9 @@ wp --json page screenshot 20 --motion-timeline-id intro --motion-at-ms 1200 --ou
 - MCP Server。
 
 校验、工作空间隔离、PAT、Scope、幂等键和乐观锁均由主仓 External API 最终执行。
+
+## B5 开发验证（2026-10-31）
+
+对应主仓 `299708d`（配置 schema 4、Scene capability、Presenter v5 与 AI 联合样例）。本仓完整 API Client/CLI 回归 209 项通过，无跳过；版本更新后的 Skill 降级测试修正了原先恰好变为当前兼容区间的夹具。截图身份与严格版本补测在定向集合中通过；help、主仓实时生成 OpenAPI 对拍、wheel/sdist、Skill 分发与技能前置结构校验通过。
+
+在线 uv 环境同步曾因 PyPI TLS 失败；沿用现有虚拟环境运行回归，并用 `uv build --offline` 成功构建 CLI 0.5.0、Skill 1.5.0。产物在 `.tmp/dist-b5`，未发布。未访问平台业务数据库、Runtime 或 Chromium；真实创作、播放与 Renderer 链路由主仓 C3 执行。

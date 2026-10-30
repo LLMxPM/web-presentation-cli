@@ -10,7 +10,7 @@
 | --- | --- | --- |
 | 图片、照片、插图 | `image` | `AssetImage` |
 | 视频 | `video` | `AssetVideo`，必要时使用真实 poster |
-| 音频、旁白 | `audio` | `AssetAudio`，内容音频手动播放；旁白需 `page_narration` 能力开放 |
+| 音频、旁白 | `audio` | `AssetAudio`，content 手动播放，旁白由显式 Scene 任务接管 |
 | 三维模型 | `model3d` | `AssetModel`，只引用自包含 GLB 资源和真实 `name` |
 | Draw.io 图 | `drawio` | `AssetDrawio`，内容为 Draw.io XML |
 | 流程图、关系图等 Mermaid 图 | `mermaid` | `AssetMermaid`，内容为 Mermaid 源码 |
@@ -81,10 +81,10 @@ wp --json workspace capabilities
 wp --json asset list
 wp --json asset get <asset_id>
 wp runtime-kit get AssetAudio.v1
-wp runtime-kit get useAudioCue.v1
+wp runtime-kit get useAudioCue.v2
 ```
 
-`capabilities.slideshow.audio` 给出三个独立开关：`audio_assets`、`page_narration`、`audio_cues`。当前阶段可能只开放 `audio_assets`；能力未开放的用途不得生成、绑定或向用户宣称。
+`slideshow.audio` 三项描述已实现能力，不再作为阶段门禁。仍需查询当前版本化 Runtime Kit 和真实资源；旁白由显式 Scene 任务等待 ended，cue 等真实播放许可回执。
 
 ```bash
 wp asset upload .tmp/web-presentation/chapter-01.mp3 --type audio --name chapter-01 --idempotency-key <key>
@@ -102,31 +102,31 @@ wp asset replace <asset_id> .tmp/web-presentation/chapter-01-v2.mp3 \
 <AssetAudio name="chapter-01" purpose="content" controls class="w-full h-16" />
 ```
 
-页面旁白只在 `page_narration=true` 时使用：
+页面旁白用真实资源名声明目标，再由页级 Scene 显式接管：
 
 ```vue
-<!-- 文件功能：演示能力开放时声明页面旁白目标，不设置 loop 或 autoplay。 -->
+<!-- 文件功能：演示显式 Scene 旁白目标，不设置 loop 或 autoplay。 -->
 <AssetAudio name="chapter-01-narration" purpose="narration" :volume="0.9" class="w-full h-16" />
 ```
 
 - 同一实际渲染页面最多一个 `purpose="narration"` 目标；旁白禁止 `loop=true`，组件不暴露 `autoplay`。
-- 旁白自动播放只发生在真实放映执行上下文；普通预览必须先由用户手势试听。
-- `advance.mode=media_end` 时旁白与其他参与媒体进入同一完成集合；`timer` 可能在旁白结束前翻页，`manual` 不因旁白结束翻页。制作旁白页时优先使用 `media_end`，并在保存前确认服务端已开放该模式。
+- 旁白只有显式 Scene/放映开始才播放，默认预览不自动启动；许可受阻时由当前窗口手势重试。
+- 旁白由显式 Scene 任务等待真实 ended，schema 4 使用 scene_end 与 completion_delay_ms；timer 可能提前停止本页，manual 不因旁白结束翻页。
 - 不要用截图证明旁白已经播放；截图只能证明资源名、播放器布局和页面结构。真实声音与自动播放需要在用户手动操作的预览或放映中验证。
 
 交互音效只使用公开 composable 和语义 cue key：
 
 ```ts
 // 文件功能：演示通过 Runtime Kit composable 请求播放项目绑定的交互音效。
-import { useAudioCue } from '@runtime-kit/public/composables/audio/useAudioCue.v1'
+import { useAudioCue } from '@runtime-kit/public/composables/audio/useAudioCue.v2'
 
 const { playCue } = useAudioCue()
-playCue('interaction.confirm')
+void playCue('interaction.confirm')
 ```
 
 - 只接受 `interaction.*` key；`transition.forward` 和 `transition.backward` 由 Runtime 切页通道独占，页面调用返回 `unavailable`。
-- 只在 `audio_cues=true` 时绑定和承诺音效；`played`、`skipped`、`unavailable` 只是同步状态，业务逻辑不得等待播放完成或依赖其副作用。
-- 预览、组件预览、截图、检查和导出上下文为 no-op；没有 cue 绑定、会话静音或加载失败时也不阻塞业务。
+- 交互音效只用 useAudioCue.v2 的 interaction.* key；Promise 等真实 play 许可，不等音效结束。静音、静态或无绑定按返回值处理，不阻塞业务，也不直接构造 Audio。
+- 静态截图、缩略图、检查与导出为 no-op；交互预览仍按当前许可处理，不能凭静态截图宣称已发声。
 - cue 绑定属于项目级音频设置，不是页面源码资源；不要向 `useAudioCue` 传 URL、资源 ID、音量或 `Audio` 实例。
 
 项目音频设置通过专用命令读写；cue 绑定只接受当前项目所在工作空间内的 active `audio` 资源：
@@ -152,7 +152,7 @@ wp --json project audio clear <project_id> --idempotency-key project-<id>-audio-
 
 - `update` 必须提交完整对象：三段音量与 `cue_bindings` 都必填，未知字段、只读字段、`null` 和缺失音量会被本地拒绝；显式空 `cue_bindings` 表示清空绑定。音量都是 0–100 的严格整数，cue key 使用小写点分段且在同一项目内唯一；跨工作空间、非音频资源或重复 key 应视为整批失败，不要部分重试。
 - `clear` 只删除 cue 绑定并保留三段音量，由服务端单事务执行；不要用 `get` 后 `update` 的读改写模拟清空，否则会覆盖期间其它客户端的音量更新。
-- 含非空 `cue_bindings` 的写入（包括 `project audio update`、`project update` 和 `project configuration update`）要求 `capabilities.slideshow.audio.audio_cues=true`；能力缺失或为 false 时 CLI 直接失败，不发送写入。`get` 仍可读取历史值，`clear` 在能力关闭时仍可降级治理。
+- cue 写入不再查询阶段开关，仍由 Backend 校验工作空间、权限和真实 active audio 资源；get 读取摘要，clear 原子清空绑定。
 
 ## 共享资源与直接内容
 

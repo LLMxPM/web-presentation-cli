@@ -18,7 +18,7 @@
 
 组件展示三维模型时使用 `AssetModel`，只引用真实 `model3d` 资源 `name`，容器声明明确宽高；相机索引与显式位置/目标互斥，位置和目标必须成对。`preview_schema` 的 presets 若设置模型 `name`，必须使用真实资源，不要编造模型名或传入 URL、路径、GLB 文本。
 
-组件展示音频时使用 `AssetAudio`，只引用真实 active `audio` 资源 `name`，容器声明明确宽高。内容音频使用 `purpose="content"`，组件不暴露 `autoplay`；旁白只在 `capabilities.slideshow.audio.page_narration=true` 时使用，不能设置 `loop`，同一预览实际页面最多一个旁白目标。`preview_schema` 的 presets 若设置音频 `name`，必须使用真实资源；交互音效只通过 `useAudioCue.v1` 的 `interaction.*` key，不在组件中读取或复制项目 cue 绑定。能力未开放时，不要把旁白或 cue 音效作为组件默认体验或宣称可用。
+组件展示音频时使用 `AssetAudio`，只引用真实 active `audio` 资源 `name`，容器声明明确宽高。内容音频使用 `purpose="content"`，组件不暴露 `autoplay`；旁白只在 `capabilities.slideshow.audio.page_narration=true` 时使用，不能设置 `loop`，同一预览实际页面最多一个旁白目标。`preview_schema` 的 presets 若设置音频 `name`，必须使用真实资源；交互音效只通过 `useAudioCue.v2` 的 `interaction.*` key，不在组件中读取或复制项目 cue 绑定。能力未开放时，不要把旁白或 cue 音效作为组件默认体验或宣称可用。
 
 `preview_schema` 必须是合法 JSON 对象，结构通常为：
 

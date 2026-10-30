@@ -83,6 +83,7 @@ def build_client(*, capability: dict | None, configuration: dict | None = None) 
         raise AssertionError(f"未预期的 GET: {path}")
 
     client.get.side_effect = fake_get
+    client.patch.return_value = {"id": 7}
     client.put.return_value = {"id": 7, "audio_settings": AUDIO_SETTINGS}
     client.post.return_value = {"id": 7, "audio_settings": {**AUDIO_SETTINGS, "cue_bindings": []}}
     return client
@@ -103,8 +104,8 @@ def test_project_audio_get_returns_saved_values() -> None:
     fake_client.get.assert_called_once_with("/projects/7/configuration")
 
 
-def test_project_audio_update_requires_open_capability_for_cues(tmp_path: Path) -> None:
-    """能力关闭时拒绝非空 cue 绑定，且不发送写入。"""
+def test_audio_update_does_not_use_stage_capability_gate(tmp_path: Path) -> None:
+    """cue 写入不受旧阶段布尔值影响，服务端仍负责真实资源与权限校验。"""
 
     audio_file = write_json(tmp_path, "audio.json", AUDIO_SETTINGS)
     fake_client = build_client(capability=CLOSED_CAPABILITY)
@@ -115,9 +116,9 @@ def test_project_audio_update_requires_open_capability_for_cues(tmp_path: Path) 
             ["--json", "project", "audio", "update", "7", "--audio-file", str(audio_file), "--idempotency-key", "audio-7"],
         )
 
-    assert result.exit_code != 0
-    assert "AUDIO_CUES_NOT_OPEN" in result.output
-    fake_client.put.assert_not_called()
+    assert result.exit_code == 0, result.output
+    fake_client.put.assert_called_once()
+    assert all("capabilities" not in str(call) for call in fake_client.get.call_args_list)
 
 
 def test_project_audio_update_writes_complete_settings_and_rereads(tmp_path: Path) -> None:
@@ -182,8 +183,8 @@ def test_project_audio_clear_uses_atomic_endpoint() -> None:
     assert payload["audio_settings"]["master_volume_percent"] == 80
 
 
-def test_generic_project_update_cannot_bypass_capability(tmp_path: Path) -> None:
-    """通用项目更新携带非空 cue 时同样受能力门禁保护。"""
+def test_generic_project_update_has_no_audio_stage_gate(tmp_path: Path) -> None:
+    """通用项目更新也删除旧音频阶段门禁。"""
 
     payload_file = write_json(tmp_path, "project.json", {"audio_settings": AUDIO_SETTINGS})
     fake_client = build_client(capability=CLOSED_CAPABILITY)
@@ -194,13 +195,13 @@ def test_generic_project_update_cannot_bypass_capability(tmp_path: Path) -> None
             ["--json", "project", "update", "7", "--payload-file", str(payload_file), "--idempotency-key", "project-7"],
         )
 
-    assert result.exit_code != 0
-    assert "AUDIO_CUES_NOT_OPEN" in result.output
-    fake_client.patch.assert_not_called()
+    assert result.exit_code == 0, result.output
+    fake_client.patch.assert_called_once()
+    fake_client.get.assert_not_called()
 
 
-def test_missing_capability_declaration_fails_closed(tmp_path: Path) -> None:
-    """服务端未声明可识别音频能力时不得推测支持。"""
+def test_audio_write_uses_server_validation_without_stage_declaration(tmp_path: Path) -> None:
+    """不再查询音频阶段开关，写入仍提交严格参数。"""
 
     audio_file = write_json(tmp_path, "audio.json", AUDIO_SETTINGS)
     fake_client = build_client(capability=None)
@@ -210,9 +211,8 @@ def test_missing_capability_declaration_fails_closed(tmp_path: Path) -> None:
             main, ["--json", "project", "audio", "update", "7", "--audio-file", str(audio_file)]
         )
 
-    assert result.exit_code != 0
-    assert "AUDIO_CAPABILITY_MISSING" in result.output
-    fake_client.put.assert_not_called()
+    assert result.exit_code == 0, result.output
+    fake_client.put.assert_called_once()
 
 
 def test_project_audio_commands_are_registered() -> None:

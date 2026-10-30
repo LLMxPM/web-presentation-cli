@@ -20,7 +20,6 @@ from wp.commands.common import (
 )
 from wp.openapi_help import contract, openapi_command
 from wp.commands.project_audio import (
-    gate_audio_settings_in_payload,
     project_audio_group,
 )
 from wp.commands.project_build import project_build_group
@@ -36,6 +35,7 @@ from wp.commands.project_slideshow import (
     SLIDESHOW_CAPABILITY_MISSING,
     require_slideshow_capability,
     validate_advance_config,
+    validate_slideshow_config,
 )
 
 
@@ -130,7 +130,6 @@ def create_project_cmd(ctx: click.Context, name: str | None, description: str | 
         client = get_client(ctx)
         if payload_file:
             payload = require_object(read_json_file(payload_file, label="项目载荷"), label="项目载荷")
-            gate_audio_settings_in_payload(client, payload, workspace_id=client.workspace_id)
         else:
             if not name:
                 raise click.UsageError("未使用 --payload-file 时必须提供 --name。")
@@ -151,7 +150,6 @@ def update_project_cmd(ctx: click.Context, project_id: int, payload_file: str) -
     try:
         client = get_client(ctx)
         payload = require_object(read_json_file(payload_file, label="项目更新载荷"), label="项目更新载荷")
-        gate_audio_settings_in_payload(client, payload, project_id=project_id)
         output_result(ctx, client.patch(f"/projects/{project_id}", json_data=payload))
     except ApiClientError as err:
         handle_api_error("更新项目失败", err)
@@ -192,7 +190,6 @@ def update_project_configuration_cmd(ctx: click.Context, project_id: int, payloa
     try:
         client = get_client(ctx)
         payload = require_object(read_json_file(payload_file, label="项目配置载荷"), label="项目配置载荷")
-        gate_audio_settings_in_payload(client, payload, project_id=project_id)
         output_result(ctx, client.put(f"/projects/{project_id}/configuration", json_data=payload))
     except ApiClientError as err:
         handle_api_error("更新项目配置失败", err)
@@ -245,7 +242,7 @@ def update_project_slideshow_cmd(ctx: click.Context, project_id: int, slideshow_
         slideshow = payload.get("slideshow", payload)
         if not isinstance(slideshow, dict):
             raise click.ClickException("放映配置必须是完整 JSON 对象。")
-        requirements = validate_advance_config(slideshow.get("advance"), "slideshow")
+        requirements = validate_slideshow_config(slideshow)
         client = get_client(ctx)
         require_slideshow_capability(client, project_id, requirements)
         updated = client.patch(f"/projects/{project_id}", json_data={"slideshow": slideshow})

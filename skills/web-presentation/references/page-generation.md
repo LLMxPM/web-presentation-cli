@@ -43,7 +43,7 @@ wp --json page dependencies <page_id>
 
 项目 configuration 决定真实画布宽高、基础字号、主题 key、样式规范和建议组件，也包含项目默认放映 `slideshow` 和音频 `audio_settings`。`base_font_size` 替代 Tailwind 默认 16px 基准，语义字号和间距按 `base_font_size / 16` 理解；直接写入的 px、rem 和 arbitrary value 不参与这个倍率。
 
-工作空间 capabilities 的 `slideshow.audio` 声明 `audio_assets`、`page_narration` 和 `audio_cues`。用户要求旁白或交互音效时，先读取该能力；未开放的用途不得生成或承诺，只做内容音频或明确说明限制。
+`slideshow.audio` 三项描述已实现能力，不再作为阶段门禁。仍需查询当前版本化 Runtime Kit 和真实资源；旁白由显式 Scene 任务等待 ended，cue 等真实播放许可回执。
 
 资源列表中的三维模型会带格式、场景数、相机数和动画数摘要；只筛三维模型时使用 `wp --json asset list --type model3d`，选定后再读取详情和 Runtime Kit 的 `AssetModel` 契约。音频资源使用 `asset_type=audio`，选定后读取详情和 `AssetAudio.v1` 契约；如果当前 CLI 的 `--type` 不接受 `audio`，使用关键词查询并报告 CLI 需要升级，不要改用其他类型。
 
@@ -69,7 +69,7 @@ wp --json page dependencies <page_id>
 
 使用图标前执行[图标发现与契约读取](./design-system-and-assets.md#图标发现与契约读取)流程；完整读取关键契约字段，不截断 JSON 或猜测示例资源名。
 
-构图中选定图片、音频、公式、数据图表、流程图或三维模型后，先按 [资源与设计系统](./design-system-and-assets.md) 选择对应 Runtime Kit 渲染组件，并用 `wp runtime-kit get <item>` 读取真实路径、用法和参数。已有共享资源按 `name` 引用；一次性公式或图表可按契约直接传 `content`，需要跨页复用或独立维护时再创建资源。三维模型只引用真实 `model3d` 资源名，按“查询模型 → 读取渲染契约 → 配置视角”配置场景和相机，不向 `AssetModel` 传 URL、路径或 GLB 文本。音频只引用真实 `audio` 资源名：内容音频使用 `purpose="content"` 并保留手动播放；旁白仅在 `page_narration=true` 时使用，禁止 loop，同一页最多一个旁白目标；交互音效使用 `useAudioCue.v1` 且仅在 `audio_cues=true` 时承诺。
+构图中选定图片、音频、公式、数据图表、流程图或三维模型后，先按 [资源与设计系统](./design-system-and-assets.md) 选择对应 Runtime Kit 渲染组件，并用 `wp runtime-kit get <item>` 读取真实路径、用法和参数。已有共享资源按 `name` 引用；一次性公式或图表可按契约直接传 `content`，需要跨页复用或独立维护时再创建资源。三维模型只引用真实 `model3d` 资源名，按“查询模型 → 读取渲染契约 → 配置视角”配置场景和相机，不向 `AssetModel` 传 URL、路径或 GLB 文本。音频只引用真实 `audio` 资源名：内容音频使用 `purpose="content"` 并保留手动播放；旁白由 createSceneMediaTask.v1 显式登记，不能 loop；同页最多一个自动发声主媒体。交互音效用 useAudioCue.v2，按实际许可结果处理。
 
 页面必须是完整、可运行的 Vue 3 SFC。默认根结构：
 
