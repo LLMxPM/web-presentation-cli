@@ -54,9 +54,9 @@ wp asset download 42 --output .tmp/web-presentation/product.glb
 
 ## 独立静态截图与 Scene 配置
 
-CLI 0.5.0 删除任意时刻采样参数；最新/历史截图使用独立静态呈现。`page screenshot --job --no-wait` 返回任务状态，`--job-id` 可继续查询；ready 才落盘，pending/unavailable/skipped/failed 保留区别和稳定原因码，执行失败退出非零。默认最新 GET 和历史内容下载保持原语义。
+CLI 0.4.1 删除任意时刻采样参数；最新/历史截图使用独立静态呈现。`page screenshot --job --no-wait` 返回任务状态，`--job-id` 可继续查询；ready 才落盘，pending/unavailable/skipped/failed 保留区别和稳定原因码，执行失败退出非零。默认最新 GET 和历史内容下载保持原语义。
 
-放映 schema 4 只接受 manual/timer/scene_end、delay_ms、completion_delay_ms 和 loop；完成后停留允许零。旧模式、超时字段和自动开始删除。新 advance 写入前核对 schema 4，缺失声明不降级 timer。Skill 1.5.0 同步 Scene 多序列、模型 v3、显式媒体任务、cue v2 和独立静态态。
+放映 schema 4 只接受 manual/timer/scene_end、delay_ms、completion_delay_ms 和 loop；完成后停留允许零。旧模式、超时字段和自动开始删除。新 advance 写入前核对 schema 4，缺失声明不降级 timer。Skill 1.4.7 同步 Scene 多序列、模型 v3、显式媒体任务、cue v2 和独立静态态。
 
 音频阶段门禁删除，严格音量/绑定参数与服务端资源、权限验证保留。真实浏览器、Mutation Job → Renderer、声音、WebGL、多窗口及独立产物由主仓 C3 验收；本仓测试与构建不代表已实测。
 
@@ -76,4 +76,6 @@ CLI 0.5.0 删除任意时刻采样参数；最新/历史截图使用独立静态
 
 对应主仓 `299708d`（配置 schema 4、Scene capability、Presenter v5 与 AI 联合样例）。本仓完整 API Client/CLI 回归 209 项通过，无跳过；版本更新后的 Skill 降级测试修正了原先恰好变为当前兼容区间的夹具。截图身份与严格版本补测在定向集合中通过；help、主仓实时生成 OpenAPI 对拍、wheel/sdist、Skill 分发与技能前置结构校验通过。
 
-在线 uv 环境同步曾因 PyPI TLS 失败；沿用现有虚拟环境运行回归，并用 `uv build --offline` 成功构建 CLI 0.5.0、Skill 1.5.0。产物在 `.tmp/dist-b5`，未发布。未访问平台业务数据库、Runtime 或 Chromium；真实创作、播放与 Renderer 链路由主仓 C3 执行。
+在线 uv 环境同步曾因 PyPI TLS 失败；沿用现有虚拟环境运行回归，并用 `uv build --offline` 成功构建 CLI 0.4.1、Skill 1.4.7。产物在 `.tmp/dist-0.4.1`，未发布。未访问平台业务数据库、Runtime 或 Chromium；真实创作、播放与 Renderer 链路由主仓 C3 执行。
+
+版本号按用户要求更正为 CLI `0.4.1`、Skill `1.4.7`，兼容范围 `>=0.4.1,<0.5.0`。版本与 Skill 管理定向回归 37 项通过；离线锁文件检查、wheel/sdist 和 Skill 分发验证通过。此修正未重跑业务全量或实机测试。
