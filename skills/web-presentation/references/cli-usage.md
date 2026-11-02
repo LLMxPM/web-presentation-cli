@@ -59,9 +59,29 @@ wp component update --help
 wp --json preview get --project-id <project_id>
 wp --json preview get --project-id <project_id> --route overview
 wp --json preview get --page-id <page_id>
+wp --json preview get --page-id <page_id> --version <version_no>
 ```
 
-项目预览支持 `--route`，页面预览不支持 `--route`；项目和页面目标只能选择一种。响应中的 `preview_url` 是短期 Preview Artifact 地址，不是正式发布地址。Windows Git Bash 会把 `/overview` 当作文件路径转换；优先使用不带前导斜杠的 `--route overview`，确需前导斜杠时使用 `MSYS_NO_PATHCONV=1`。
+项目预览支持 `--route`，页面预览不支持 `--route`；项目和页面目标只能选择一种。`--version` 只能与 `--page-id` 搭配，用于查看历史版本效果，不修改当前页面、当前版本和默认截图指针。响应中的 `preview_url` 是短期 Preview Artifact 地址，不是正式发布地址。Windows Git Bash 会把 `/overview` 当作文件路径转换；优先使用不带前导斜杠的 `--route overview`，确需前导斜杠时使用 `MSYS_NO_PATHCONV=1`。
+
+## 页面版本历史与重点快照
+
+页面内容以版本链保存；查询、导出、比较、标记和预览都使用 `page_id` 与正整数 `version_no` 定位，不使用可能变化的 `version_label`。
+
+```bash
+wp --json page version list <page_id>
+wp --json page version list <page_id> --important --limit 5
+wp --json page version get <page_id> <version_no>
+wp page version export <page_id> <version_no> --output .tmp/web-presentation/page-<page_id>-v<version_no>.vue
+wp page version diff <page_id> <from_version> <to_version> --field all
+wp page version snapshot <page_id> <version_no> --name "内容确认版" --idempotency-key page-<page_id>-v<version_no>-checkpoint
+```
+
+- `list` 最新版本在前；`--important` 与 `--limit` 在 CLI 拿到完整列表后先筛选再限制数量，不改变服务端版本链还原成本。`--json` 仍是顶层数组。
+- `get` 与 `export` 读服务端还原后的 `resolved_content`；`content` 在普通历史节点上是差异文本，不能当源码使用。导出按 UTF-8 原样写入，默认拒绝覆盖已有文件，确认覆盖时加 `--overwrite`。
+- `diff` 方向为 from → to，分别比较源码与演讲备注；无变化同样退出 0，只有参数、访问或读取失败才非零退出。备注的 `null` 与空串语义不同，文本为空也会报变更。
+- `snapshot` 只标记已有版本：不新增版本、不切换当前版本、不改源码和备注。重复提交同一版本只重命名，不重复分配展示版号；不同名称需要新幂等键，旧键重放不会撤销之后的重命名。
+- 需要基于旧内容继续创作时，先 `get` 或 `export` 读取，再基于当前版本提交 `page edit`；本轮没有历史恢复命令。
 
 ## 音频资源与项目音频设置
 

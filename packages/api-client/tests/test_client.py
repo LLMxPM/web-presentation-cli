@@ -178,6 +178,35 @@ def test_create_preview_artifact_reuses_one_typed_flow_for_project_and_page() ->
     client.close()
 
 
+def test_client_handles_page_version_preview_and_snapshot_paths() -> None:
+    """历史版本预览不带幂等键，快照写入必须携带幂等键并提交名称。"""
+
+    requests: list[tuple[str, str | None, dict[str, object] | None]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        payload = json.loads(request.content) if request.content else None
+        requests.append((request.url.path, request.headers.get("Idempotency-Key"), payload))
+        return httpx.Response(200, json={"ok": True})
+
+    client = ApiClient("https://backend.test", token="pat_secret", workspace_id=9)
+    client.client.close()
+    client.client = httpx.Client(base_url=client.endpoint, transport=httpx.MockTransport(handler))
+
+    client.create_page_version_preview_artifact(21, 5)
+    client.create_page_version_snapshot(21, 12, snapshot_name="内容确认版", idempotency_key="page-21-v12")
+    client.create_page_version_snapshot(21, 12, snapshot_name="内容确认版")
+
+    assert requests[0] == ("/api/v1/pages/21/versions/5/preview-artifact", None, {})
+    assert requests[1] == (
+        "/api/v1/pages/21/versions/12/snapshot",
+        "page-21-v12",
+        {"snapshot_name": "内容确认版"},
+    )
+    assert requests[2][1]
+    assert requests[2][2] == {"snapshot_name": "内容确认版"}
+    client.close()
+
+
 def test_client_reuses_default_idempotency_key_for_write_requests() -> None:
     """验证调用方提供的默认幂等键会进入所有写请求。"""
 

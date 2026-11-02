@@ -242,6 +242,35 @@ class ApiClient:
             idempotent=False,
         )
 
+    def create_page_version_preview_artifact(self, page_id: int, version_no: int) -> dict[str, Any]:
+        """基于页面历史版本创建短期预览 artifact；不修改当前页面。"""
+
+        if page_id < 1 or version_no < 1:
+            raise ValueError("page_id 与 version_no 必须是正整数。")
+        return self.post(
+            f"/pages/{page_id}/versions/{version_no}/preview-artifact",
+            json_data={},
+            idempotent=False,
+        )
+
+    def create_page_version_snapshot(
+        self,
+        page_id: int,
+        version_no: int,
+        *,
+        snapshot_name: str,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        """把指定版本标记为重点快照，同版本重复提交只重命名。"""
+
+        if page_id < 1 or version_no < 1:
+            raise ValueError("page_id 与 version_no 必须是正整数。")
+        return self.post(
+            f"/pages/{page_id}/versions/{version_no}/snapshot",
+            json_data={"snapshot_name": snapshot_name},
+            idempotency_key=idempotency_key,
+        )
+
     def create_page(self, payload: Mapping[str, Any], *, idempotency_key: str | None = None) -> dict[str, Any]:
         """提交页面创建 Mutation Job。"""
 

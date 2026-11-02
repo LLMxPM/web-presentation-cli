@@ -5,6 +5,7 @@ from __future__ import annotations
 import click
 
 from wp.client import ApiClient, ApiClientError
+from wp.commands.page_version import register_page_version_commands
 from wp.commands.screenshot import screenshot_cmd
 from wp.commands.validation_input import build_validation_payload
 from wp.config import get_profile, load_config
@@ -259,36 +260,6 @@ def edit_page_cmd(ctx: click.Context, page_id: int, edits_file: str, base_versio
         handle_api_error("提交页面编辑失败", err)
 
 
-@page_group.group("version")
-def page_version_group() -> None:
-    """页面历史版本。"""
-
-
-@openapi_command(page_version_group, "list", contract("GET", "/api/v1/pages/{page_id}/versions"))
-@click.argument("page_id", type=int)
-@click.pass_context
-def list_page_versions_cmd(ctx: click.Context, page_id: int) -> None:
-    """列出页面版本。"""
-
-    try:
-        output_result(ctx, get_client(ctx).get(f"/pages/{page_id}/versions"))
-    except ApiClientError as err:
-        handle_api_error("获取页面版本失败", err)
-
-
-@openapi_command(page_version_group, "get", contract("GET", "/api/v1/pages/{page_id}/versions/{version_no}"))
-@click.argument("page_id", type=int)
-@click.argument("version_no", type=int)
-@click.pass_context
-def get_page_version_cmd(ctx: click.Context, page_id: int, version_no: int) -> None:
-    """获取页面指定版本。"""
-
-    try:
-        output_result(ctx, get_client(ctx).get(f"/pages/{page_id}/versions/{version_no}"))
-    except ApiClientError as err:
-        handle_api_error("获取页面版本内容失败", err)
-
-
 @openapi_command(page_group, "dependencies", contract("GET", "/api/v1/pages/{page_id}/dependencies"))
 @click.argument("page_id", type=int)
 @click.pass_context
@@ -333,3 +304,4 @@ def validate_page_cmd(ctx: click.Context, page_id: int, mode: str | None, source
 
 
 page_group.add_command(screenshot_cmd)
+register_page_version_commands(page_group)

@@ -6,14 +6,14 @@
 
 | 资源 | CLI 命令 |
 | --- | --- |
-| 预览地址 | `wp preview get --project-id <id> [--route <path>]`, `wp preview get --page-id <id>`；返回短期 `preview_url` |
+| 预览地址 | `wp preview get --project-id <id> [--route <path>]`, `wp preview get --page-id <id> [--version <version_no>]`；返回短期 `preview_url` |
 | 系统 | `wp system version`, `wp system health` |
 | 标准 | `wp standards page`, `wp standards component` |
 | 动态请求契约 | 目标叶子命令的 `--help` 从 Backend OpenAPI 展示 |
 | Runtime Kit | `wp runtime-kit list`, `wp runtime-kit get <item>` |
 | 字体 | `wp font list/get/register/update`，`wp font family list/get/rename`；注册/更新使用 `--payload-file`，预设从 `workspace capabilities` 查询 |
 | 项目 | `list`, `get`, `create`, `update`, `archive`, `configuration get/update`, `slideshow get/update`, `route get/add/update/replace`, `apply-style`, `build-assets update` |
-| 页面 | `list`, `get`, `create`, `copy`, `update`, `source`, `edit`, `version list/get`, `dependencies`, `validate`, `screenshot`, `archive` |
+| 页面 | `list`, `get`, `create`, `copy`, `update`, `source`, `edit`, `version list/get/export/diff/snapshot`, `dependencies`, `validate`, `screenshot`, `archive` |
 | 组件 | `list`, `get`, `create`, `update`, `edit`, `version list/get`, `dependencies`, `validate`, `publish`, `archive` |
 | 资源 | `list`, `get`, `create`, `upload`, `replace`, `download`, `update`, `copy`, `content get/update/preview`, `tags list`, `archive`；`--type` 支持 `model3d` |
 | 主题 | `list`, `get`, `create`, `update`, `copy`, `archive` |
@@ -59,6 +59,27 @@ CLI 0.4.1 删除任意时刻采样参数；最新/历史截图使用独立静态
 放映 schema 4 只接受 manual/timer/scene_end、delay_ms、completion_delay_ms 和 loop；完成后停留允许零。旧模式、超时字段和自动开始删除。新 advance 写入前核对 schema 4，缺失声明不降级 timer。Skill 1.4.7 同步 Scene 多序列、模型 v3、显式媒体任务、cue v2 和独立静态态。
 
 音频阶段门禁删除，严格音量/绑定参数与服务端资源、权限验证保留。真实浏览器、Mutation Job → Renderer、声音、WebGL、多窗口及独立产物由主仓 C3 验收；本仓测试与构建不代表已实测。
+
+## 页面版本管理
+
+页面历史以版本链保存，命令统一使用 `page_id` 与正整数 `version_no` 定位：
+
+```bash
+wp --json page version list 21 --important --limit 5
+wp --json page version get 21 5
+wp page version export 21 5 --output .tmp/web-presentation/page-21-v5.vue
+wp page version diff 21 5 12 --field all
+wp page version snapshot 21 12 --name "内容确认版" --idempotency-key page-21-v12-checkpoint
+wp preview get --page-id 21 --version 5
+```
+
+- `list --important/--limit` 在 CLI 收到完整列表后先筛选再限制数量；`--json` 保持顶层数组与既有字段，不改为分页 envelope。
+- `export` 与 `diff` 只使用服务端还原的 `resolved_content`；`content` 在普通历史节点上是差异文本。导出按 UTF-8 原样写入，先写同目录临时文件再原子替换，默认拒绝覆盖，`--overwrite` 才允许；`--json` 返回 `page_id`、`version_no`、`file_type`、`output_path` 与 `bytes`。
+- `diff` 方向为 from → to，分别比较源码与演讲备注；无差异同样退出 0。备注 `null` 与空串语义不同，文本相同也报变更；相同版本只读取一次。
+- `snapshot` 只标记已有版本，不新增版本、不切换当前版本、不改源码和备注；同版本重复提交只重命名，不同名称需要新幂等键。
+- `preview get --version` 只能与 `--page-id` 搭配，与项目目标或 `--route` 混用时在发请求前报参数错误；旧 Backend 缺少历史预览路由时帮助与执行明确报不可用，不静默预览当前版本。
+
+后端契约见主仓 External API 的 `page.version.snapshot` 与 `page.version.preview` operation；本轮不提供历史恢复命令。
 
 ## 明确不支持
 
