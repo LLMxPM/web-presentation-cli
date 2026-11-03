@@ -12,7 +12,7 @@
 
 主仓唯一维护的 External API v1 契约：[External Agent API v1 契约](https://github.com/LLMxPM/web-presentation/blob/dev/docs/developer/reference/external-agent-api.md)。本仓库当前只维护 CLI、专用同步客户端和 Skill 的接入实现。
 
-当前开发版 CLI 0.4.1 / Skill 1.4.7 使用 schema 4 Scene 放映配置，支持独立静态截图任务与可恢复状态；旧时间轴取帧参数已删除。真实播放、声音与浏览器验收见主仓 C3 记录。
+当前开发版 CLI 0.4.2 / Skill 1.4.8 使用 schema 4 Scene 放映配置，支持独立静态截图任务、历史版本管理与可恢复状态；旧时间轴取帧参数已删除。真实播放、声音与浏览器验收见主仓 C3 记录。
 
 ## 用户快速开始
 
@@ -168,6 +168,6 @@ pipx install web-presentation-cli
 
 ### 契约可用性与多页交付
 
-当前源码为 CLI `0.4.1`，内置 `web-presentation` Skill `1.4.7`，Skill 要求 CLI `>=0.4.1,<0.5.0`。字体与主题功能已实现并补充审查修复，真实渲染、PostgreSQL 和独立构建联合验收仍待完成，见[实施与验证记录](docs/font-theme/implementation-plan.md)。CLI 升级后需重新运行 `wp skill install --scope global` 或 `--scope project` 同步原安装位置；Doctor 会给出原因、版本、完整路径和对应修复命令。
+当前源码为 CLI `0.4.2`，内置 `web-presentation` Skill `1.4.8`，Skill 要求 CLI `>=0.4.2,<0.5.0`。字体与主题功能已实现并补充审查修复，真实渲染、PostgreSQL 和独立构建联合验收仍待完成，见[实施与验证记录](docs/font-theme/implementation-plan.md)。CLI 升级后需重新运行 `wp skill install --scope global` 或 `--scope project` 同步原安装位置；Doctor 会给出原因、版本、完整路径和对应修复命令。
 
 页面和组件校验根据候选文件自动选择模式，并拒绝冲突参数；`project route add` 可将已有页面挂到顶层或已有分组，保留其它节点及放映覆盖；`route update` 仅修改已有节点。资源上传支持显式 `--overwrite`，需要版本保护或替换三维模型时使用 `asset replace --expected-file-hash`。音频资源、`project audio get/update/clear`、放映配置、历史截图与构建产物下载工作流见 [CLI 说明](packages/cli/README.md)。配置保存、截图和任务成功不能代替真实音频播放验收。

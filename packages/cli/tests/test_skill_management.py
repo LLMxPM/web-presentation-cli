@@ -72,14 +72,14 @@ def test_plan_targets_rejects_invalid_scope(tmp_path: Path) -> None:
 
 
 def test_bundled_skill_minimum_cli_covers_route_add_and_candidate_inference() -> None:
-    """当前内置 Skill 随 CLI 0.4.1 发布，兼容范围不得包含旧版 CLI。"""
+    """当前内置 Skill 随 CLI 0.4.2 发布，兼容范围不得包含旧版 CLI。"""
 
     skill = get_bundled_skill("web-presentation")
     assert version_satisfies("0.3.3", skill.requires_cli) is False
     assert version_satisfies("0.3.4", skill.requires_cli) is False
     assert version_satisfies("0.3.5", skill.requires_cli) is False
     assert version_satisfies("0.4.0", skill.requires_cli) is False
-    assert version_satisfies("0.4.1", skill.requires_cli) is True
+    assert version_satisfies("0.4.1", skill.requires_cli) is False
     assert version_satisfies("0.4.2", skill.requires_cli) is True
     assert version_satisfies("0.5.0", skill.requires_cli) is False
 

@@ -102,7 +102,7 @@ wp --raw project list
 
 Skill 与 CLI 一起发布，但使用独立版本。`wp skill status` 会识别缺失、过期、较新、不兼容、用户修改和未受管理等状态；普通升级不会覆盖用户修改，`--force` 会先保留同级备份。CLI 升级不会隐式改写已安装 Skill，需要重新运行 `wp skill install` 完成同步。若此前版本曾向 `.claude/skills`、`.mimocode/skills`、`~/.config/mimocode/skills` 或 `.workbuddy/skills` 安装过副本，升级后请手动移除这些旧目录，统一使用 `.agents/skills`。
 
-当前源码版本关系：CLI `0.4.1` 内置 `web-presentation` Skill `1.4.7`，Skill 兼容范围为 `>=0.4.1,<0.5.0`。升级 CLI 后需重新运行 `wp skill install` 同步原安装范围；Doctor 会展示安装原因、实际版本和修复命令。构建时会把版本关系与规范化内容 SHA-256 写入 manifest。
+当前源码版本关系：CLI `0.4.2` 内置 `web-presentation` Skill `1.4.8`，Skill 兼容范围为 `>=0.4.2,<0.5.0`。升级 CLI 后需重新运行 `wp skill install` 同步原安装范围；Doctor 会展示安装原因、实际版本和修复命令。构建时会把版本关系与规范化内容 SHA-256 写入 manifest。
 
 `wp skill export` 生成的标准 ZIP 可用于支持本地上传的产品；CLI 不从 URL 或第三方仓库下载 Skill。
 
@@ -149,6 +149,12 @@ wp job wait <job_id>
 
 写入命令支持 `--idempotency-key <key>`；网络超时后需要重放同一业务请求时复用原 key，不要把同一个 key 用于不同请求。
 
+
+### 0.4.2 行为变更
+
+- 新增 `wp page version list/get/export/diff/snapshot`，用 `page_id` 与 `version_no` 定位历史版本；导出原子写入且默认拒绝覆盖，快照只标记已有版本不新增版本。
+- `wp preview get --page-id <id> --version <n>` 走历史版本预览接口，与项目目标或 `--route` 混用时在发请求前报错；旧 Backend 缺少该路由时明确报不可用，不静默回退当前版本。
+- 内置 Skill `1.4.8` 同步页面版本命令与历史预览用法，要求 CLI `>=0.4.2,<0.5.0`。
 
 ### 0.4.1 行为变更
 

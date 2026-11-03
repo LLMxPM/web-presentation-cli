@@ -100,3 +100,11 @@ wp preview get --page-id 21 --version 5
 在线 uv 环境同步曾因 PyPI TLS 失败；沿用现有虚拟环境运行回归，并用 `uv build --offline` 成功构建 CLI 0.4.1、Skill 1.4.7。产物在 `.tmp/dist-0.4.1`，未发布。未访问平台业务数据库、Runtime 或 Chromium；真实创作、播放与 Renderer 链路由主仓 C3 执行。
 
 版本号按用户要求更正为 CLI `0.4.1`、Skill `1.4.7`，兼容范围 `>=0.4.1,<0.5.0`。版本与 Skill 管理定向回归 37 项通过；离线锁文件检查、wheel/sdist 和 Skill 分发验证通过。此修正未重跑业务全量或实机测试。
+
+## v0.4.2 发布验证（2026-11-03）
+
+页面版本管理命令与历史版本预览发布为 CLI `0.4.2`、内置 Skill `1.4.8`，兼容范围 `>=0.4.2,<0.5.0`；`requires_cli` 下界抬到 0.4.2，避免旧版 CLI 装到描述新命令的 Skill。
+
+对应主仓 `5fce614` 的 `editor/src/types/openapi.json`，其中 `page.version.snapshot` 与 `page.version.preview` 两个 operation 已存在。本仓 `uv sync --all-packages --frozen` 后完整 API Client/CLI 回归 232 项通过、无跳过；`wp --version`、`wp --help`、`uv build` 产物经 `twine check` 与 `verify_skill_distribution.py` 校验通过，产物在 `.tmp/dist-0.4.2`。
+
+真实平台侧的历史版本导出、diff 与历史预览联调未在本次发布中实测，仍需按主仓 External API E2E 验收。
